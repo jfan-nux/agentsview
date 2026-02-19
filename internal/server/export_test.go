@@ -505,7 +505,7 @@ func TestCreateGist_Success(t *testing.T) {
 			if r.Header.Get("Authorization") != "token test-tok" {
 				t.Error("missing or wrong Authorization header")
 			}
-			if r.Header.Get("User-Agent") != "agentsv" {
+			if r.Header.Get("User-Agent") != "agentsview" {
 				t.Error("missing User-Agent header")
 			}
 

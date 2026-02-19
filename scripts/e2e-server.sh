@@ -21,13 +21,13 @@ cd "$ROOT/frontend" && npm run build
 rm -rf "$ROOT/internal/web/dist"
 cp -r "$ROOT/frontend/dist" "$ROOT/internal/web/dist"
 CGO_ENABLED=1 go build -tags fts5 \
-  -o "$TMPDIR/agentsv" "$ROOT/cmd/agentsv"
+  -o "$TMPDIR/agentsview" "$ROOT/cmd/agentsview"
 
 # Run server with test DB, no sync dirs, fixed port
 echo "Starting e2e server on :8090..."
 AGENT_VIEWER_DATA_DIR="$TMPDIR" \
 CLAUDE_PROJECTS_DIR="$EMPTY_DIR" \
 CODEX_SESSIONS_DIR="$EMPTY_DIR" \
-exec "$TMPDIR/agentsv" \
+exec "$TMPDIR/agentsview" \
   -port 8090 \
   -no-browser

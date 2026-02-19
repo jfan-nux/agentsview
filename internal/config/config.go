@@ -34,7 +34,7 @@ func Default() (Config, error) {
 			"determining home directory: %w", err,
 		)
 	}
-	dataDir := filepath.Join(home, ".agentsv")
+	dataDir := filepath.Join(home, ".agentsview")
 	return Config{
 		Host:             "127.0.0.1",
 		Port:             8080,

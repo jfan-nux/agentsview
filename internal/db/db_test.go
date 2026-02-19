@@ -1080,8 +1080,8 @@ func TestCursorSecretConcurrency(t *testing.T) {
 			for j := range iterations {
 				switch id % 3 {
 				case 0:
-					secret := []byte(
-						fmt.Sprintf("secret-%d-%d", id, j),
+					secret := fmt.Appendf(
+						nil, "secret-%d-%d", id, j,
 					)
 					d.SetCursorSecret(secret)
 				case 1:

@@ -207,7 +207,7 @@ func createGistWithURL(
 	req.Header.Set("Authorization", "token "+token)
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", "agentsv")
+	req.Header.Set("User-Agent", "agentsview")
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
@@ -245,7 +245,7 @@ func validateGithubTokenWithURL(
 	}
 	req.Header.Set("Authorization", "token "+token)
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", "agentsv")
+	req.Header.Set("User-Agent", "agentsview")
 
 	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)

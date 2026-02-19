@@ -7,7 +7,7 @@ agentsview is a local web viewer for AI agent sessions (Claude Code, Codex). It 
 ## Architecture
 
 ```
-CLI (agentsv) → Config → DB (SQLite/FTS5)
+CLI (agentsview) → Config → DB (SQLite/FTS5)
                   ↓
               File Watcher → Sync Engine → Parser (Claude, Codex)
                   ↓
@@ -22,7 +22,7 @@ CLI (agentsv) → Config → DB (SQLite/FTS5)
 
 ## Project Structure
 
-- `cmd/agentsv/` - Go server entrypoint
+- `cmd/agentsview/` - Go server entrypoint
 - `cmd/testfixture/` - Test data generator for E2E tests
 - `internal/config/` - Config loading, flag registration, legacy migration
 - `internal/db/` - SQLite operations (sessions, messages, search, analytics)
@@ -38,7 +38,7 @@ CLI (agentsv) → Config → DB (SQLite/FTS5)
 
 | Path | Purpose |
 |------|---------|
-| `cmd/agentsv/main.go` | CLI entry point, server startup, file watcher |
+| `cmd/agentsview/main.go` | CLI entry point, server startup, file watcher |
 | `internal/server/server.go` | HTTP router and handler setup |
 | `internal/server/sessions.go` | Session list/detail API handlers |
 | `internal/server/search.go` | Full-text search API |

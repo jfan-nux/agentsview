@@ -14,19 +14,19 @@ LDFLAGS_RELEASE := $(LDFLAGS) -s -w
 
 # Build the binary (debug, with embedded frontend)
 build: frontend
-	CGO_ENABLED=1 go build -tags fts5 -ldflags="$(LDFLAGS)" -o agentsv ./cmd/agentsv
-	@chmod +x agentsv
+	CGO_ENABLED=1 go build -tags fts5 -ldflags="$(LDFLAGS)" -o agentsview ./cmd/agentsview
+	@chmod +x agentsview
 
 # Build with optimizations (release)
 build-release: frontend
-	CGO_ENABLED=1 go build -tags fts5 -ldflags="$(LDFLAGS_RELEASE)" -trimpath -o agentsv ./cmd/agentsv
-	@chmod +x agentsv
+	CGO_ENABLED=1 go build -tags fts5 -ldflags="$(LDFLAGS_RELEASE)" -trimpath -o agentsview ./cmd/agentsview
+	@chmod +x agentsview
 
 # Install to ~/.local/bin, $GOBIN, or $GOPATH/bin
 install: build-release
 	@if [ -d "$(HOME)/.local/bin" ]; then \
-		echo "Installing to ~/.local/bin/agentsv"; \
-		cp agentsv "$(HOME)/.local/bin/agentsv"; \
+		echo "Installing to ~/.local/bin/agentsview"; \
+		cp agentsview "$(HOME)/.local/bin/agentsview"; \
 	else \
 		INSTALL_DIR="$${GOBIN:-$$(go env GOBIN)}"; \
 		if [ -z "$$INSTALL_DIR" ]; then \
@@ -34,8 +34,8 @@ install: build-release
 			INSTALL_DIR="$$GOPATH_FIRST/bin"; \
 		fi; \
 		mkdir -p "$$INSTALL_DIR"; \
-		echo "Installing to $$INSTALL_DIR/agentsv"; \
-		cp agentsv "$$INSTALL_DIR/agentsv"; \
+		echo "Installing to $$INSTALL_DIR/agentsview"; \
+		cp agentsview "$$INSTALL_DIR/agentsview"; \
 	fi
 
 # Build frontend SPA and copy into embed directory
@@ -50,7 +50,7 @@ frontend-dev:
 
 # Run Go server in dev mode (no embedded frontend)
 dev:
-	go run -tags fts5 -ldflags="$(LDFLAGS)" ./cmd/agentsv $(ARGS)
+	go run -tags fts5 -ldflags="$(LDFLAGS)" ./cmd/agentsview $(ARGS)
 
 # Run tests
 test:
@@ -82,7 +82,7 @@ tidy:
 
 # Clean build artifacts
 clean:
-	rm -f agentsv
+	rm -f agentsview
 	rm -rf internal/web/dist dist/
 
 # Build release binary for current platform (CGO required for sqlite3)
@@ -90,26 +90,26 @@ release: frontend
 	mkdir -p dist
 	CGO_ENABLED=1 go build -tags fts5 \
 		-ldflags="$(LDFLAGS_RELEASE)" -trimpath \
-		-o dist/agentsv-$$(go env GOOS)-$$(go env GOARCH) ./cmd/agentsv
+		-o dist/agentsview-$$(go env GOOS)-$$(go env GOARCH) ./cmd/agentsview
 
 # Cross-compile targets (require CC set to target cross-compiler)
 release-darwin-arm64: frontend
 	mkdir -p dist
 	GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build -tags fts5 \
 		-ldflags="$(LDFLAGS_RELEASE)" -trimpath \
-		-o dist/agentsv-darwin-arm64 ./cmd/agentsv
+		-o dist/agentsview-darwin-arm64 ./cmd/agentsview
 
 release-darwin-amd64: frontend
 	mkdir -p dist
 	GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build -tags fts5 \
 		-ldflags="$(LDFLAGS_RELEASE)" -trimpath \
-		-o dist/agentsv-darwin-amd64 ./cmd/agentsv
+		-o dist/agentsview-darwin-amd64 ./cmd/agentsview
 
 release-linux-amd64: frontend
 	mkdir -p dist
 	GOOS=linux GOARCH=amd64 CGO_ENABLED=1 go build -tags fts5 \
 		-ldflags="$(LDFLAGS_RELEASE)" -trimpath \
-		-o dist/agentsv-linux-amd64 ./cmd/agentsv
+		-o dist/agentsview-linux-amd64 ./cmd/agentsview
 
 # Install pre-commit hook, resolving the hooks directory via git so
 # this works in both normal repos and linked worktrees
@@ -124,7 +124,7 @@ install-hooks:
 
 # Show help
 help:
-	@echo "agentsv build targets:"
+	@echo "agentsview build targets:"
 	@echo ""
 	@echo "  build          - Build with embedded frontend"
 	@echo "  build-release  - Release build (optimized, stripped)"

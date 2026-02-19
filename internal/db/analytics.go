@@ -308,10 +308,6 @@ func (db *DB) GetAnalyticsActivity(
 	}
 	defer rows.Close()
 
-	type entryKey struct {
-		bucket string
-	}
-
 	buckets := make(map[string]*ActivityEntry)
 	sessionSeen := make(map[string]string) // session_id -> bucket
 

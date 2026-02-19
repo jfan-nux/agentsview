@@ -67,7 +67,7 @@ func runServe(args []string) {
 	srv := server.New(cfg, database, engine)
 
 	url := fmt.Sprintf("http://%s:%d", cfg.Host, cfg.Port)
-	fmt.Printf("agentsv %s listening at %s\n", version, url)
+	fmt.Printf("agentsview %s listening at %s\n", version, url)
 
 	if !cfg.NoBrowser {
 		go openBrowser(url)
