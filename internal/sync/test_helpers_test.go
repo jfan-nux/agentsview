@@ -62,3 +62,61 @@ func clearSessionHash(t *testing.T, database *db.DB, sessionID string) {
 		t.Fatalf("failed to clear hash for %s: %v", sessionID, err)
 	}
 }
+
+// assertHashRoundTrip clears the session hash, verifies the
+// precondition, runs SyncSingleSession to recompute the hash,
+// and asserts the hash is stored and a subsequent SyncAll skips.
+func (e *testEnv) assertHashRoundTrip(
+	t *testing.T, sessionID string,
+) {
+	t.Helper()
+
+	clearSessionHash(t, e.db, sessionID)
+
+	_, preHash, preOK := e.db.GetSessionFileInfo(sessionID)
+	if !preOK {
+		t.Fatal("session file info missing after hash clear")
+	}
+	if preHash != "" {
+		t.Fatalf(
+			"precondition failed: hash = %q, want empty",
+			preHash,
+		)
+	}
+
+	if err := e.engine.SyncSingleSession(sessionID); err != nil {
+		t.Fatalf("SyncSingleSession: %v", err)
+	}
+
+	_, hash, ok := e.db.GetSessionFileInfo(sessionID)
+	if !ok {
+		t.Fatal("session file info not found")
+	}
+	if hash == "" {
+		t.Error("SyncSingleSession did not store file hash")
+	}
+
+	runSyncAndAssert(t, e.engine, 0, 1)
+}
+
+// updateSessionProject fetches the session, updates its
+// Project field, and upserts it back. Reduces boilerplate
+// for tests that need to override a single field.
+func (e *testEnv) updateSessionProject(
+	t *testing.T, sessionID, project string,
+) {
+	t.Helper()
+	sess, err := e.db.GetSessionFull(
+		context.Background(), sessionID,
+	)
+	if err != nil {
+		t.Fatalf("GetSessionFull: %v", err)
+	}
+	if sess == nil {
+		t.Fatalf("session %q not found", sessionID)
+	}
+	sess.Project = project
+	if err := e.db.UpsertSession(*sess); err != nil {
+		t.Fatalf("UpsertSession: %v", err)
+	}
+}

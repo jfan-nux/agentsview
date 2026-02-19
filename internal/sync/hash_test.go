@@ -3,10 +3,20 @@ package sync
 import (
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func createTempFile(t *testing.T, content []byte) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "test-file")
+	if err := os.WriteFile(path, content, 0o644); err != nil {
+		t.Fatalf("create temp file: %v", err)
+	}
+	return path
+}
 
 func TestComputeHash(t *testing.T) {
 	tests := []struct {

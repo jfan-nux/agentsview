@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/wesm/agentsview/internal/db"
+	"github.com/wesm/agentsview/internal/dbtest"
 	"github.com/wesm/agentsview/internal/sync"
 )
 
@@ -27,15 +28,8 @@ func setupTestEnv(t *testing.T) *testEnv {
 	env := &testEnv{
 		claudeDir: t.TempDir(),
 		codexDir:  t.TempDir(),
+		db:        dbtest.OpenTestDB(t),
 	}
-
-	dbPath := filepath.Join(t.TempDir(), "test.db")
-	var err error
-	env.db, err = db.Open(dbPath)
-	if err != nil {
-		t.Fatalf("Open DB: %v", err)
-	}
-	t.Cleanup(func() { env.db.Close() })
 
 	env.engine = sync.NewEngine(
 		env.db, env.claudeDir, env.codexDir, "local",
@@ -43,38 +37,47 @@ func setupTestEnv(t *testing.T) *testEnv {
 	return env
 }
 
-// writeClaudeSession creates a JSONL session file under the
-// Claude projects directory and returns the full file path.
-func (e *testEnv) writeClaudeSession(
-	t *testing.T, projName, filename, content string,
+// writeSession creates a JSONL session file under baseDir at
+// the given relative path, creating parent directories as
+// needed. Returns the full file path.
+func (e *testEnv) writeSession(
+	t *testing.T, baseDir, relPath, content string,
 ) string {
 	t.Helper()
-	dir := filepath.Join(e.claudeDir, projName)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	path := filepath.Join(baseDir, relPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatalf("MkdirAll: %v", err)
 	}
-	path := filepath.Join(dir, filename)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(
+		path, []byte(content), 0o644,
+	); err != nil {
 		t.Fatalf("WriteFile: %v", err)
 	}
 	return path
 }
 
+// writeClaudeSession creates a JSONL session file under the
+// Claude projects directory.
+func (e *testEnv) writeClaudeSession(
+	t *testing.T, projName, filename, content string,
+) string {
+	t.Helper()
+	return e.writeSession(
+		t, e.claudeDir,
+		filepath.Join(projName, filename), content,
+	)
+}
+
 // writeCodexSession creates a JSONL session file under the
-// Codex date-based directory and returns the full file path.
+// Codex date-based directory.
 func (e *testEnv) writeCodexSession(
 	t *testing.T, dayPath, filename, content string,
 ) string {
 	t.Helper()
-	dir := filepath.Join(e.codexDir, dayPath)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		t.Fatalf("MkdirAll: %v", err)
-	}
-	path := filepath.Join(dir, filename)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("WriteFile: %v", err)
-	}
-	return path
+	return e.writeSession(
+		t, e.codexDir,
+		filepath.Join(dayPath, filename), content,
+	)
 }
 
 func TestSyncEngineIntegration(t *testing.T) {
@@ -310,40 +313,8 @@ func TestSyncSingleSessionHash(t *testing.T) {
 		t, "test-proj", "single-hash.jsonl", content,
 	)
 
-	// Initial full sync to discover the session
 	env.engine.SyncAll(nil)
-
-	// Clear hash to simulate pre-hash DB state
-	clearSessionHash(t, env.db, "single-hash")
-
-	// Verify precondition: hash is cleared
-	_, preHash, preOK := env.db.GetSessionFileInfo(
-		"single-hash",
-	)
-	if !preOK {
-		t.Fatal("session file info missing after hash clear")
-	}
-	if preHash != "" {
-		t.Fatalf("precondition failed: hash = %q, want empty",
-			preHash)
-	}
-
-	// SyncSingleSession should compute and store hash
-	err := env.engine.SyncSingleSession("single-hash")
-	if err != nil {
-		t.Fatalf("SyncSingleSession: %v", err)
-	}
-
-	_, hash, ok := env.db.GetSessionFileInfo("single-hash")
-	if !ok {
-		t.Fatal("session file info not found")
-	}
-	if hash == "" {
-		t.Error("SyncSingleSession did not store file hash")
-	}
-
-	// Subsequent SyncAll should skip (hash matches)
-	runSyncAndAssert(t, env.engine, 0, 1)
+	env.assertHashRoundTrip(t, "single-hash")
 }
 
 func TestSyncSingleSessionHashCodex(t *testing.T) {
@@ -363,43 +334,9 @@ func TestSyncSingleSessionHashCodex(t *testing.T) {
 
 	sessionID := "codex:" + uuid
 
-	// Initial full sync to discover the session
 	env.engine.SyncAll(nil)
-
 	assertSessionState(t, env.db, sessionID, nil)
-
-	// Clear hash to simulate pre-hash DB state
-	clearSessionHash(t, env.db, sessionID)
-
-	// Verify precondition: hash is cleared
-	_, preHash, preOK := env.db.GetSessionFileInfo(sessionID)
-	if !preOK {
-		t.Fatal("session file info missing after hash clear")
-	}
-	if preHash != "" {
-		t.Fatalf("precondition failed: hash = %q, want empty",
-			preHash)
-	}
-
-	// SyncSingleSession should compute and store hash
-	err := env.engine.SyncSingleSession(sessionID)
-	if err != nil {
-		t.Fatalf("SyncSingleSession: %v", err)
-	}
-
-	_, hash, ok := env.db.GetSessionFileInfo(sessionID)
-	if !ok {
-		t.Fatal("session file info not found")
-	}
-	if hash == "" {
-		t.Error(
-			"SyncSingleSession did not store file hash " +
-				"for codex session",
-		)
-	}
-
-	// Subsequent SyncAll should skip (hash matches)
-	runSyncAndAssert(t, env.engine, 0, 1)
+	env.assertHashRoundTrip(t, sessionID)
 }
 
 func TestSyncEngineTombstoneClearOnMtimeChange(t *testing.T) {
@@ -453,79 +390,30 @@ func TestSyncSingleSessionProjectFallback(t *testing.T) {
 		}
 	})
 
-	sess, err := env.db.GetSessionFull(context.Background(), "fallback-test")
-	if err != nil {
-		t.Fatalf("GetSessionFull: %v", err)
-	}
-	if sess == nil {
-		t.Fatal("session not found")
-	}
+	// 3. Manually update project to "custom_proj"
+	// This simulates a user override we want to preserve
+	env.updateSessionProject(t, "fallback-test", "custom_proj")
 
-	// 3. Manually update project to "custom-proj"
-	// This simulates a user override or a previous state we want to preserve
-	err = env.db.UpsertSession(db.Session{
-		ID:           sess.ID,
-		Project:      "custom_proj", // <--- CHANGED
-		Machine:      sess.Machine,
-		Agent:        sess.Agent,
-		MessageCount: sess.MessageCount,
-		FilePath:     sess.FilePath,
-		FileSize:     sess.FileSize,
-		FileMtime:    sess.FileMtime,
-		FileHash:     sess.FileHash,
-		FirstMessage: sess.FirstMessage,
-		StartedAt:    sess.StartedAt,
-		EndedAt:      sess.EndedAt,
-		CreatedAt:    sess.CreatedAt,
-	})
-	if err != nil {
-		t.Fatalf("manual update: %v", err)
-	}
-
-	// Verify manual update worked
 	assertSessionState(t, env.db, "fallback-test", func(sess *db.Session) {
 		if sess.Project != "custom_proj" {
 			t.Fatalf("manual update failed, project = %q", sess.Project)
 		}
 	})
 
-	// 4. Run SyncSingleSession
-	// This should NOT revert to "default-proj" if we fix the bug
-	err = env.engine.SyncSingleSession("fallback-test")
+	// 4. SyncSingleSession should NOT revert to "default_proj"
+	err := env.engine.SyncSingleSession("fallback-test")
 	if err != nil {
 		t.Fatalf("SyncSingleSession: %v", err)
 	}
 
-	// 5. Verify project is still "custom-proj"
 	assertSessionState(t, env.db, "fallback-test", func(sess *db.Session) {
 		if sess.Project != "custom_proj" {
 			t.Errorf("regression: project reverted to %q, want %q", sess.Project, "custom_proj")
 		}
 	})
 
-	// ==========================================
-	// New test cases for Empty and Bad Project
-	// ==========================================
-
-	// Case A: Empty Project -> Should fall back to directory
-	err = env.db.UpsertSession(db.Session{
-		ID:           sess.ID,
-		Project:      "", // Empty
-		Machine:      sess.Machine,
-		Agent:        sess.Agent,
-		MessageCount: sess.MessageCount,
-		FilePath:     sess.FilePath,
-		FileSize:     sess.FileSize,
-		FileMtime:    sess.FileMtime,
-		FileHash:     sess.FileHash,
-		FirstMessage: sess.FirstMessage,
-		StartedAt:    sess.StartedAt,
-		EndedAt:      sess.EndedAt,
-		CreatedAt:    sess.CreatedAt,
-	})
-	if err != nil {
-		t.Fatalf("manual update empty: %v", err)
-	}
+	// Case A: Empty project -> should fall back to directory
+	env.updateSessionProject(t, "fallback-test", "")
 
 	err = env.engine.SyncSingleSession("fallback-test")
 	if err != nil {
@@ -538,26 +426,8 @@ func TestSyncSingleSessionProjectFallback(t *testing.T) {
 		}
 	})
 
-	// Case B: Project needing reparse -> Should fall back to directory
-	badProject := "_Users_wesm_bad"
-	err = env.db.UpsertSession(db.Session{
-		ID:           sess.ID,
-		Project:      badProject,
-		Machine:      sess.Machine,
-		Agent:        sess.Agent,
-		MessageCount: sess.MessageCount,
-		FilePath:     sess.FilePath,
-		FileSize:     sess.FileSize,
-		FileMtime:    sess.FileMtime,
-		FileHash:     sess.FileHash,
-		FirstMessage: sess.FirstMessage,
-		StartedAt:    sess.StartedAt,
-		EndedAt:      sess.EndedAt,
-		CreatedAt:    sess.CreatedAt,
-	})
-	if err != nil {
-		t.Fatalf("manual update bad: %v", err)
-	}
+	// Case B: Bad project -> should fall back to directory
+	env.updateSessionProject(t, "fallback-test", "_Users_wesm_bad")
 
 	err = env.engine.SyncSingleSession("fallback-test")
 	if err != nil {
