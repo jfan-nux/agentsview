@@ -18,6 +18,9 @@ class SearchStore {
       clearTimeout(this.debounceTimer);
     }
 
+    // Invalidate any in-flight request immediately
+    const v = ++this.version;
+
     if (!q.trim()) {
       this.results = [];
       this.isSearching = false;
@@ -25,7 +28,7 @@ class SearchStore {
     }
 
     this.debounceTimer = setTimeout(() => {
-      this.executeSearch(q, this.project);
+      this.executeSearch(q, this.project, v);
     }, 300);
   }
 
@@ -33,14 +36,17 @@ class SearchStore {
     this.query = "";
     this.results = [];
     this.isSearching = false;
+    ++this.version;
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;
     }
   }
 
-  private async executeSearch(q: string, project: string) {
-    const v = ++this.version;
+  private async executeSearch(
+    q: string, project: string, v: number,
+  ) {
+    if (this.version !== v) return;
     this.isSearching = true;
     try {
       const res = await api.search(q, {

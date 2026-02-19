@@ -152,38 +152,28 @@ export function triggerSync(
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let buf = "";
+      let finished = false;
 
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
         buf += decoder.decode(value, { stream: true });
+        // Normalize CRLF to LF
+        buf = buf.replaceAll("\r\n", "\n");
 
-        // Parse SSE frames from the buffer
-        let idx: number;
-        while ((idx = buf.indexOf("\n\n")) !== -1) {
-          const frame = buf.slice(0, idx);
-          buf = buf.slice(idx + 2);
-
-          let event = "";
-          let data = "";
-          for (const line of frame.split("\n")) {
-            if (line.startsWith("event: ")) {
-              event = line.slice(7);
-            } else if (line.startsWith("data: ")) {
-              data = line.slice(6);
-            }
-          }
-
-          if (event === "progress" && data) {
-            callbacks.onProgress?.(
-              JSON.parse(data) as SyncProgress,
-            );
-          } else if (event === "done" && data) {
-            callbacks.onDone?.(
-              JSON.parse(data) as SyncStats,
-            );
-          }
+        if (processFrames(buf, callbacks)) {
+          finished = true;
+          reader.cancel();
+          break;
         }
+        // Remove fully consumed frames
+        const last = buf.lastIndexOf("\n\n");
+        if (last !== -1) buf = buf.slice(last + 2);
+      }
+
+      // Process any trailing frame on EOF
+      if (!finished && buf.trim()) {
+        processFrame(buf, callbacks);
       }
     })
     .catch((err) => {
@@ -192,6 +182,47 @@ export function triggerSync(
     });
 
   return controller;
+}
+
+/** Parse all complete SSE frames in buf. Returns true if "done" was received. */
+function processFrames(
+  buf: string, callbacks: SyncEventCallbacks,
+): boolean {
+  let idx: number;
+  let start = 0;
+  while ((idx = buf.indexOf("\n\n", start)) !== -1) {
+    const frame = buf.slice(start, idx);
+    start = idx + 2;
+    if (processFrame(frame, callbacks)) return true;
+  }
+  return false;
+}
+
+/** Dispatch a single SSE frame. Returns true if it was a "done" event. */
+function processFrame(
+  frame: string, callbacks: SyncEventCallbacks,
+): boolean {
+  let event = "";
+  const dataLines: string[] = [];
+  for (const line of frame.split("\n")) {
+    if (line.startsWith("event: ")) {
+      event = line.slice(7);
+    } else if (line.startsWith("data: ")) {
+      dataLines.push(line.slice(6));
+    } else if (line.startsWith("data:")) {
+      dataLines.push(line.slice(5));
+    }
+  }
+  const data = dataLines.join("\n");
+  if (!data) return false;
+
+  if (event === "progress") {
+    callbacks.onProgress?.(JSON.parse(data) as SyncProgress);
+  } else if (event === "done") {
+    callbacks.onDone?.(JSON.parse(data) as SyncStats);
+    return true;
+  }
+  return false;
 }
 
 /** Watch a session for live updates via SSE */
