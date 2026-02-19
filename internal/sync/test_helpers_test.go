@@ -3,107 +3,16 @@ package sync_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
-	"strings"
 	"testing"
 
 	"github.com/wesm/agentsview/internal/db"
 	"github.com/wesm/agentsview/internal/sync"
+	"github.com/wesm/agentsview/internal/testjsonl"
 )
 
-// --- Session Builder ---
-
-type SessionBuilder struct {
-	lines []string
-}
-
-func NewSessionBuilder() *SessionBuilder {
-	return &SessionBuilder{}
-}
-
-func (b *SessionBuilder) AddClaudeUser(timestamp, content string, cwd ...string) *SessionBuilder {
-	m := map[string]any{
-		"type":      "user",
-		"timestamp": timestamp,
-		"message": map[string]any{
-			"content": content,
-		},
-	}
-	if len(cwd) > 0 {
-		m["cwd"] = cwd[0]
-	}
-	line, _ := json.Marshal(m)
-	b.lines = append(b.lines, string(line))
-	return b
-}
-
-func (b *SessionBuilder) AddClaudeAssistant(timestamp, text string) *SessionBuilder {
-	m := map[string]any{
-		"type":      "assistant",
-		"timestamp": timestamp,
-		"message": map[string]any{
-			"content": []map[string]string{
-				{
-					"type": "text",
-					"text": text,
-				},
-			},
-		},
-	}
-	line, _ := json.Marshal(m)
-	b.lines = append(b.lines, string(line))
-	return b
-}
-
-func (b *SessionBuilder) AddCodexMeta(timestamp, id, cwd, originator string) *SessionBuilder {
-	m := map[string]any{
-		"type":      "session_meta",
-		"timestamp": timestamp,
-		"payload": map[string]any{
-			"id":         id,
-			"cwd":        cwd,
-			"originator": originator,
-		},
-	}
-	line, _ := json.Marshal(m)
-	b.lines = append(b.lines, string(line))
-	return b
-}
-
-func (b *SessionBuilder) AddCodexMessage(timestamp, role, text string) *SessionBuilder {
-	contentType := "output_text"
-	if role == "user" {
-		contentType = "input_text"
-	}
-	m := map[string]any{
-		"type":      "response_item",
-		"timestamp": timestamp,
-		"payload": map[string]any{
-			"role": role,
-			"content": []map[string]string{
-				{
-					"type": contentType,
-					"text": text,
-				},
-			},
-		},
-	}
-	line, _ := json.Marshal(m)
-	b.lines = append(b.lines, string(line))
-	return b
-}
-
-func (b *SessionBuilder) AddRaw(line string) *SessionBuilder {
-	b.lines = append(b.lines, line)
-	return b
-}
-
-func (b *SessionBuilder) String() string {
-	return strings.Join(b.lines, "\n") + "\n"
-}
-
-func (b *SessionBuilder) StringNoTrailingNewline() string {
-	return strings.Join(b.lines, "\n")
+// NewSessionBuilder returns a shared JSONL session builder.
+func NewSessionBuilder() *testjsonl.SessionBuilder {
+	return testjsonl.NewSessionBuilder()
 }
 
 // --- Assertion Helpers ---

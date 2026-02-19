@@ -73,6 +73,33 @@ func writeConfig(t *testing.T, dir string, data any) {
 	}
 }
 
+// configWithTmpDir returns a Config with DataDir set to a fresh
+// temp directory.
+func configWithTmpDir(t *testing.T) (Config, string) {
+	t.Helper()
+	dir := t.TempDir()
+	return Config{DataDir: dir}, dir
+}
+
+// assertFilePerm checks that the file at path has permission bits
+// matching the given mask and expected value.
+func assertFilePerm(
+	t *testing.T, path string,
+	mask, want os.FileMode,
+) {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("stat %s: %v", filepath.Base(path), err)
+	}
+	if got := info.Mode().Perm() & mask; got != want {
+		t.Errorf(
+			"%s perm & %o = %o, want %o",
+			filepath.Base(path), mask, got, want,
+		)
+	}
+}
+
 func loadConfigFromFlags(t *testing.T, args ...string) (Config, error) {
 	t.Helper()
 	fs := flag.NewFlagSet("test", flag.ContinueOnError)
@@ -191,40 +218,13 @@ func TestMigrateFromLegacy_FilePermissions(t *testing.T) {
 	MigrateFromLegacy(newDir)
 
 	// Data dir must not be group/other accessible
-	info, err := os.Stat(newDir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := info.Mode().Perm(); perm&0o077 != 0 {
-		t.Errorf(
-			"data dir perm = %o, group/other bits should be 0",
-			perm,
-		)
-	}
+	assertFilePerm(t, newDir, 0o077, 0)
 
 	// config.json must not be group/other readable
-	info, err = os.Stat(filepath.Join(newDir, "config.json"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := info.Mode().Perm(); perm&0o077 != 0 {
-		t.Errorf(
-			"config.json perm = %o, group/other bits should be 0",
-			perm,
-		)
-	}
+	assertFilePerm(t, filepath.Join(newDir, "config.json"), 0o077, 0)
 
 	// sessions.db should be owner-accessible
-	info, err = os.Stat(filepath.Join(newDir, "sessions.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if perm := info.Mode().Perm(); perm&0o400 == 0 {
-		t.Errorf(
-			"sessions.db perm = %o, owner should have read",
-			perm,
-		)
-	}
+	assertFilePerm(t, filepath.Join(newDir, "sessions.db"), 0o400, 0o400)
 }
 
 func TestLoadEnv_OverridesDataDir(t *testing.T) {
@@ -289,8 +289,7 @@ func TestLoad_NilFlagSet(t *testing.T) {
 }
 
 func TestSaveGithubToken_RejectsCorruptConfig(t *testing.T) {
-	tmp := t.TempDir()
-	cfg := Config{DataDir: tmp}
+	cfg, tmp := configWithTmpDir(t)
 
 	// Write invalid JSON to config file
 	path := filepath.Join(tmp, "config.json")
@@ -311,8 +310,7 @@ func TestSaveGithubToken_ReturnsErrorOnReadFailure(t *testing.T) {
 		t.Skip("permission-based test not reliable on Windows")
 	}
 
-	tmp := t.TempDir()
-	cfg := Config{DataDir: tmp}
+	cfg, tmp := configWithTmpDir(t)
 
 	// Create a config file that is not readable
 	path := filepath.Join(tmp, "config.json")
@@ -338,8 +336,7 @@ func TestSaveGithubToken_ReturnsErrorOnReadFailure(t *testing.T) {
 }
 
 func TestSaveGithubToken_PreservesExistingKeys(t *testing.T) {
-	tmp := t.TempDir()
-	cfg := Config{DataDir: tmp}
+	cfg, tmp := configWithTmpDir(t)
 
 	existing := map[string]any{"custom_key": "value"}
 	writeConfig(t, tmp, existing)

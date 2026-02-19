@@ -1,107 +1,33 @@
 package parser
 
 import (
-	"encoding/json"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/wesm/agentsview/internal/testjsonl"
 )
 
-// --- JSON Builders ---
+// --- JSON Builders (delegate to shared testjsonl package) ---
 
 func claudeUserJSON(content, timestamp string, cwd ...string) string {
-	m := map[string]any{
-		"type":      "user",
-		"timestamp": timestamp,
-		"message": map[string]any{
-			"content": content,
-		},
-	}
-	if len(cwd) > 0 {
-		m["cwd"] = cwd[0]
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
+	return testjsonl.ClaudeUserJSON(content, timestamp, cwd...)
 }
 
 func claudeAssistantJSON(content any, timestamp string) string {
-	m := map[string]any{
-		"type":      "assistant",
-		"timestamp": timestamp,
-		"message": map[string]any{
-			"content": content,
-		},
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
+	return testjsonl.ClaudeAssistantJSON(content, timestamp)
 }
 
 func claudeSnapshotJSON(timestamp string) string {
-	m := map[string]any{
-		"type": "user",
-		"snapshot": map[string]any{
-			"timestamp": timestamp,
-		},
-		"message": map[string]any{
-			"content": "hello",
-		},
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
+	return testjsonl.ClaudeSnapshotJSON(timestamp)
 }
 
 func codexSessionMetaJSON(id, cwd, originator, timestamp string) string {
-	m := map[string]any{
-		"type":      "session_meta",
-		"timestamp": timestamp,
-		"payload": map[string]any{
-			"id":         id,
-			"cwd":        cwd,
-			"originator": originator,
-		},
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
+	return testjsonl.CodexSessionMetaJSON(id, cwd, originator, timestamp)
 }
 
 func codexMsgJSON(role, text, timestamp string) string {
-	m := map[string]any{
-		"type":      "response_item",
-		"timestamp": timestamp,
-		"payload": map[string]any{
-			"role": role,
-			"content": []map[string]string{
-				{
-					"type": getCodexContentType(role),
-					"text": text,
-				},
-			},
-		},
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		panic(err)
-	}
-	return string(b)
-}
-
-func getCodexContentType(role string) string {
-	if role == "user" {
-		return "input_text"
-	}
-	return "output_text"
+	return testjsonl.CodexMsgJSON(role, text, timestamp)
 }
 
 // --- Data Generators ---
@@ -153,5 +79,5 @@ func assertTimestamp(t *testing.T, got time.Time, want time.Time) {
 }
 
 func joinJSONL(lines ...string) string {
-	return strings.Join(lines, "\n") + "\n"
+	return testjsonl.JoinJSONL(lines...)
 }
