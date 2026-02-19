@@ -257,6 +257,10 @@ func isAlphanumOrDashUnderscore(c rune) bool {
 func DiscoverGeminiSessions(
 	geminiDir string,
 ) []DiscoveredFile {
+	if geminiDir == "" {
+		return nil
+	}
+
 	tmpDir := filepath.Join(geminiDir, "tmp")
 	hashDirs, err := os.ReadDir(tmpDir)
 	if err != nil {
@@ -310,7 +314,8 @@ func DiscoverGeminiSessions(
 func FindGeminiSourceFile(
 	geminiDir, sessionID string,
 ) string {
-	if !isValidSessionID(sessionID) {
+	if geminiDir == "" || !isValidSessionID(sessionID) ||
+		len(sessionID) < 8 {
 		return ""
 	}
 

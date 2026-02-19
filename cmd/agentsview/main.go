@@ -158,9 +158,11 @@ func startFileWatcher(
 	if _, err := os.Stat(cfg.CodexSessionsDir); err == nil {
 		_ = watcher.WatchRecursive(cfg.CodexSessionsDir)
 	}
-	geminiTmp := filepath.Join(cfg.GeminiDir, "tmp")
-	if _, err := os.Stat(geminiTmp); err == nil {
-		_ = watcher.WatchRecursive(geminiTmp)
+	if cfg.GeminiDir != "" {
+		geminiTmp := filepath.Join(cfg.GeminiDir, "tmp")
+		if _, err := os.Stat(geminiTmp); err == nil {
+			_ = watcher.WatchRecursive(geminiTmp)
+		}
 	}
 	watcher.Start()
 	return watcher.Stop

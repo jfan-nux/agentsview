@@ -375,3 +375,33 @@ func TestBuildGeminiProjectMapMissingFile(t *testing.T) {
 		t.Errorf("expected empty map, got %d entries", len(m))
 	}
 }
+
+func TestFindGeminiSourceFileShortID(t *testing.T) {
+	dir := t.TempDir()
+	// IDs shorter than 8 chars should return empty, not panic
+	for _, id := range []string{"", "a", "abc", "1234567"} {
+		got := FindGeminiSourceFile(dir, id)
+		if got != "" {
+			t.Errorf(
+				"FindGeminiSourceFile(%q) = %q, want empty",
+				id, got,
+			)
+		}
+	}
+}
+
+func TestDiscoverGeminiSessionsEmptyDir(t *testing.T) {
+	files := DiscoverGeminiSessions("")
+	if files != nil {
+		t.Errorf("expected nil, got %d files", len(files))
+	}
+}
+
+func TestFindGeminiSourceFileEmptyDir(t *testing.T) {
+	got := FindGeminiSourceFile(
+		"", "b0a4eadd-cb99-4165-94d9-64cad5a66d24",
+	)
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
