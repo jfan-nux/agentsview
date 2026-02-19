@@ -227,6 +227,43 @@ func assertStatus(
 	}
 }
 
+func assertBodyContains(
+	t *testing.T, w *httptest.ResponseRecorder, substr string,
+) {
+	t.Helper()
+	if !strings.Contains(w.Body.String(), substr) {
+		t.Errorf("body %q does not contain %q",
+			w.Body.String(), substr)
+	}
+}
+
+// assertTimeoutResponse checks that a response has the expected status,
+// a JSON content type, and a body containing the given substring.
+func assertTimeoutResponse(
+	t *testing.T,
+	w *httptest.ResponseRecorder,
+	wantStatus int,
+	wantBody string,
+) {
+	t.Helper()
+	assertStatus(t, w, wantStatus)
+	ct := w.Header().Get("Content-Type")
+	if ct != "application/json" {
+		t.Errorf("Content-Type = %q, want application/json", ct)
+	}
+	assertBodyContains(t, w, wantBody)
+}
+
+// expiredContext returns a context with a deadline in the past.
+func expiredContext(
+	t *testing.T,
+) (context.Context, context.CancelFunc) {
+	t.Helper()
+	return context.WithDeadline(
+		context.Background(), time.Now().Add(-1*time.Hour),
+	)
+}
+
 type LogEntry struct {
 	Type      string `json:"type"`
 	Timestamp string `json:"timestamp"`
@@ -735,8 +772,7 @@ func TestSearch_DeadlineExceeded(t *testing.T) {
 		m.ContentLength = 18
 	})
 
-	// Create a context that is already past its deadline
-	ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-1*time.Hour))
+	ctx, cancel := expiredContext(t)
 	defer cancel()
 
 	req := httptest.NewRequest(
@@ -745,10 +781,8 @@ func TestSearch_DeadlineExceeded(t *testing.T) {
 	w := httptest.NewRecorder()
 	te.handler.ServeHTTP(w, req)
 
-	// Handler explicitly returns 504 when the context deadline is exceeded,
-	// but the http.TimeoutHandler middleware sees the context expiration
-	// as a timeout and writes 503 first (or prevents the handler from writing).
-	// So we expect 503 here.
+	// The http.TimeoutHandler middleware sees the expired context
+	// and writes 503 before the handler can respond.
 	assertStatus(t, w, http.StatusServiceUnavailable)
 }
 
@@ -876,9 +910,7 @@ func TestExportSession(t *testing.T) {
 	if !strings.Contains(cd, "attachment") {
 		t.Fatalf("expected attachment disposition, got %q", cd)
 	}
-	if !strings.Contains(w.Body.String(), "my-app") {
-		t.Fatal("export HTML should contain project name")
-	}
+	assertBodyContains(t, w, "my-app")
 }
 
 func TestExportSession_NotFound(t *testing.T) {

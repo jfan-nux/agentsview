@@ -26,6 +26,16 @@ func assertContentType(
 	}
 }
 
+// expiredCtx returns a context with a deadline in the past.
+func expiredCtx(
+	t *testing.T,
+) (context.Context, context.CancelFunc) {
+	t.Helper()
+	return context.WithDeadline(
+		context.Background(), time.Now().Add(-1*time.Hour),
+	)
+}
+
 // setupInternal creates a Server for internal testing.
 // It bypasses the public New() wrapper logic to focus on internal components if needed,
 // but uses New() to ensure correct initialization.
@@ -96,8 +106,7 @@ func TestHandlers_Internal_DeadlineExceeded(t *testing.T) {
 			if tt.name == "Search" && !s.db.HasFTS() {
 				t.Skip("skipping search test: no FTS support")
 			}
-			// Create a context that is already past its deadline
-			ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-1*time.Hour))
+			ctx, cancel := expiredCtx(t)
 			defer cancel()
 
 			req := httptest.NewRequest("GET", "/?q=test", nil)

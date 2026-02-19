@@ -1,12 +1,9 @@
 package server_test
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
-	"time"
 )
 
 func TestMiddleware_Timeout(t *testing.T) {
@@ -31,29 +28,15 @@ func TestMiddleware_Timeout(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create a context that is already past its deadline
-			// This forces the middleware (http.TimeoutHandler) to timeout immediately
-			ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(-1*time.Hour))
+			ctx, cancel := expiredContext(t)
 			defer cancel()
 
 			req := httptest.NewRequest(tt.method, tt.path, nil).WithContext(ctx)
 			w := httptest.NewRecorder()
 			te.handler.ServeHTTP(w, req)
 
-			// Expect 503 Service Unavailable from middleware
-			if w.Code != http.StatusServiceUnavailable {
-				t.Errorf("expected status 503, got %d. Body: %s", w.Code, w.Body.String())
-			}
-
-			// Check that response is JSON
-			if contentType := w.Header().Get("Content-Type"); contentType != "application/json" {
-				t.Errorf("expected Content-Type application/json, got %s", contentType)
-			}
-
-			// Check body contains "request timed out"
-			if !strings.Contains(w.Body.String(), "request timed out") {
-				t.Errorf("expected body to contain 'request timed out', got %s", w.Body.String())
-			}
+			assertTimeoutResponse(t, w,
+				http.StatusServiceUnavailable, "request timed out")
 		})
 	}
 }
