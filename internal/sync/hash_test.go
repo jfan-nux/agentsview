@@ -2,7 +2,6 @@ package sync
 
 import (
 	"errors"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -84,13 +83,7 @@ func TestComputeFileHash(t *testing.T) {
 
 			got, err := ComputeFileHash(path)
 			if tt.wantErr {
-				if err == nil {
-					t.Fatal("expected error, got nil")
-				}
-				var pathErr *fs.PathError
-				if !errors.As(err, &pathErr) {
-					t.Errorf("expected *fs.PathError, got %T: %v", err, err)
-				}
+				requirePathError(t, err)
 				return
 			}
 			if err != nil {
@@ -127,17 +120,5 @@ func TestComputeFileHash_ReadError(t *testing.T) {
 	if !strings.Contains(err.Error(), "hashing "+dir) {
 		t.Errorf("expected error to contain 'hashing %s', got %v", dir, err)
 	}
-
-	var pathErr *fs.PathError
-	if !errors.As(err, &pathErr) {
-		t.Errorf("expected error to wrap *fs.PathError, got %T: %v", err, err)
-	}
-}
-
-type failingReader struct {
-	err error
-}
-
-func (f *failingReader) Read(p []byte) (n int, err error) {
-	return 0, f.err
+	requirePathError(t, err)
 }
