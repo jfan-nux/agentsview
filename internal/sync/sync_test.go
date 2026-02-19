@@ -1,6 +1,7 @@
 package sync
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -248,5 +249,129 @@ func TestIsDigits(t *testing.T) {
 					tt.s, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDiscoverGeminiSessions(t *testing.T) {
+	dir := setupTestDir(t, []string{
+		filepath.Join("tmp", "hash1", "chats", "session-2026-01-01T10-00-abc123.json"),
+		filepath.Join("tmp", "hash1", "chats", "session-2026-01-02T10-00-def456.json"),
+		filepath.Join("tmp", "hash2", "chats", "session-2026-01-03T10-00-ghi789.json"),
+	})
+
+	files := DiscoverGeminiSessions(dir)
+
+	assertDiscoveredFiles(t, files, []string{
+		"session-2026-01-01T10-00-abc123.json",
+		"session-2026-01-02T10-00-def456.json",
+		"session-2026-01-03T10-00-ghi789.json",
+	}, parser.AgentGemini)
+}
+
+func TestDiscoverGeminiSessionsNoChatDir(t *testing.T) {
+	// Hash dir exists but has no chats/ subdirectory
+	dir := setupTestDir(t, []string{
+		filepath.Join("tmp", "hash1", "other.txt"),
+	})
+
+	files := DiscoverGeminiSessions(dir)
+	assertDiscoveredFiles(t, files, nil, parser.AgentGemini)
+}
+
+func TestDiscoverGeminiSessionsEmptyChatDir(t *testing.T) {
+	dir := t.TempDir()
+	chatsDir := filepath.Join(dir, "tmp", "hash1", "chats")
+	if err := os.MkdirAll(chatsDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+
+	files := DiscoverGeminiSessions(dir)
+	assertDiscoveredFiles(t, files, nil, parser.AgentGemini)
+}
+
+func TestDiscoverGeminiSessionsNonexistent(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "does-not-exist")
+	files := DiscoverGeminiSessions(dir)
+	if files != nil {
+		t.Errorf("expected nil, got %d files", len(files))
+	}
+}
+
+func TestDiscoverGeminiSessionsSkipsNonSessionFiles(t *testing.T) {
+	dir := setupTestDir(t, []string{
+		filepath.Join("tmp", "hash1", "chats", "session-abc.json"),
+		filepath.Join("tmp", "hash1", "chats", "other.json"),
+		filepath.Join("tmp", "hash1", "chats", "session-def.txt"),
+	})
+
+	files := DiscoverGeminiSessions(dir)
+	assertDiscoveredFiles(t, files, []string{
+		"session-abc.json",
+	}, parser.AgentGemini)
+}
+
+func TestFindGeminiSourceFile(t *testing.T) {
+	sessionID := "b0a4eadd-cb99-4165-94d9-64cad5a66d24"
+	sessionContent := `{"sessionId":"` + sessionID + `","messages":[]}`
+	filename := "session-2026-01-19T18-21-b0a4eadd.json"
+
+	dir := t.TempDir()
+	chatsDir := filepath.Join(dir, "tmp", "hash1", "chats")
+	if err := os.MkdirAll(chatsDir, 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	path := filepath.Join(chatsDir, filename)
+	if err := os.WriteFile(
+		path, []byte(sessionContent), 0o644,
+	); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	got := FindGeminiSourceFile(dir, sessionID)
+	if got != path {
+		t.Errorf("got %q, want %q", got, path)
+	}
+
+	// Nonexistent session
+	got = FindGeminiSourceFile(dir, "nonexistent-uuid-1234")
+	if got != "" {
+		t.Errorf("expected empty, got %q", got)
+	}
+}
+
+func TestGeminiPathHash(t *testing.T) {
+	// Known SHA-256 of "/Users/wesm/code/roborev"
+	hash := geminiPathHash("/Users/wesm/code/roborev")
+	if len(hash) != 64 {
+		t.Errorf("hash length = %d, want 64", len(hash))
+	}
+	// Hash should be deterministic
+	if geminiPathHash("/Users/wesm/code/roborev") != hash {
+		t.Error("hash not deterministic")
+	}
+}
+
+func TestBuildGeminiProjectMap(t *testing.T) {
+	dir := t.TempDir()
+	projectsJSON := `{"projects":{"/Users/wesm/code/my-app":"my-app"}}`
+	if err := os.WriteFile(
+		filepath.Join(dir, "projects.json"),
+		[]byte(projectsJSON), 0o644,
+	); err != nil {
+		t.Fatalf("write: %v", err)
+	}
+
+	m := buildGeminiProjectMap(dir)
+	hash := geminiPathHash("/Users/wesm/code/my-app")
+	if m[hash] != "my_app" {
+		t.Errorf("project for hash = %q, want %q",
+			m[hash], "my_app")
+	}
+}
+
+func TestBuildGeminiProjectMapMissingFile(t *testing.T) {
+	m := buildGeminiProjectMap(t.TempDir())
+	if len(m) != 0 {
+		t.Errorf("expected empty map, got %d entries", len(m))
 	}
 }

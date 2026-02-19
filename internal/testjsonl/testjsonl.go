@@ -165,6 +165,118 @@ func (b *SessionBuilder) StringNoTrailingNewline() string {
 	return strings.Join(b.lines, "\n")
 }
 
+// GeminiToolCall defines a tool call for Gemini test fixtures.
+type GeminiToolCall struct {
+	Name        string
+	DisplayName string
+	Args        map[string]string
+}
+
+// GeminiThought defines a thought for Gemini test fixtures.
+type GeminiThought struct {
+	Subject     string
+	Description string
+	Timestamp   string
+}
+
+// GeminiMsgOpts holds optional fields for a Gemini assistant
+// message.
+type GeminiMsgOpts struct {
+	Thoughts  []GeminiThought
+	ToolCalls []GeminiToolCall
+	Model     string
+}
+
+// GeminiUserMsg builds a Gemini user message object.
+func GeminiUserMsg(
+	id, timestamp, content string,
+) map[string]any {
+	return map[string]any{
+		"id":        id,
+		"timestamp": timestamp,
+		"type":      "user",
+		"content":   content,
+	}
+}
+
+// GeminiAssistantMsg builds a Gemini assistant message object.
+func GeminiAssistantMsg(
+	id, timestamp, content string, opts *GeminiMsgOpts,
+) map[string]any {
+	m := map[string]any{
+		"id":        id,
+		"timestamp": timestamp,
+		"type":      "gemini",
+		"content":   content,
+	}
+	if opts == nil {
+		return m
+	}
+	if opts.Model != "" {
+		m["model"] = opts.Model
+	}
+	if len(opts.Thoughts) > 0 {
+		var thoughts []map[string]string
+		for _, th := range opts.Thoughts {
+			thoughts = append(thoughts, map[string]string{
+				"subject":     th.Subject,
+				"description": th.Description,
+				"timestamp":   th.Timestamp,
+			})
+		}
+		m["thoughts"] = thoughts
+	}
+	if len(opts.ToolCalls) > 0 {
+		var tcs []map[string]any
+		for _, tc := range opts.ToolCalls {
+			entry := map[string]any{
+				"name":        tc.Name,
+				"displayName": tc.DisplayName,
+				"status":      "success",
+			}
+			if tc.Args != nil {
+				entry["args"] = tc.Args
+			}
+			tcs = append(tcs, entry)
+		}
+		m["toolCalls"] = tcs
+	}
+	return m
+}
+
+// GeminiInfoMsg builds a Gemini info/system message object.
+func GeminiInfoMsg(
+	id, timestamp, content, msgType string,
+) map[string]any {
+	return map[string]any{
+		"id":        id,
+		"timestamp": timestamp,
+		"type":      msgType,
+		"content":   content,
+	}
+}
+
+// GeminiSessionJSON builds a complete Gemini session JSON
+// string from the given parameters.
+func GeminiSessionJSON(
+	sessionID, projectHash string,
+	startTime, lastUpdated string,
+	messages []map[string]any,
+) string {
+	session := map[string]any{
+		"sessionId":   sessionID,
+		"projectHash": projectHash,
+		"startTime":   startTime,
+		"lastUpdated": lastUpdated,
+		"messages":    messages,
+	}
+	b, err := json.MarshalIndent(session, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return string(b)
+}
+
 func mustMarshal(v any) string {
 	b, err := json.Marshal(v)
 	if err != nil {

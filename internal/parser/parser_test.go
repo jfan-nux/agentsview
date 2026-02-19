@@ -959,3 +959,306 @@ func TestExtractCwdFromSession(t *testing.T) {
 		}
 	})
 }
+
+func TestParseGeminiSession(t *testing.T) {
+	hash := "abc123def456"
+
+	standardMessages := []map[string]any{
+		testjsonl.GeminiUserMsg("u1", tsEarly, "Fix the login bug"),
+		testjsonl.GeminiAssistantMsg(
+			"a1", tsEarlyS5, "Looking at the auth module...", nil,
+		),
+		testjsonl.GeminiUserMsg("u2", tsLate, "That looks right"),
+		testjsonl.GeminiAssistantMsg(
+			"a2", tsLateS5, "Applied the fix.", nil,
+		),
+	}
+
+	toolCallMessages := []map[string]any{
+		testjsonl.GeminiUserMsg("u1", tsEarly, "Read this file"),
+		testjsonl.GeminiAssistantMsg(
+			"a1", tsEarlyS5, "Let me read it.", &testjsonl.GeminiMsgOpts{
+				Thoughts: []testjsonl.GeminiThought{
+					{
+						Subject:     "Planning",
+						Description: "I need to read the file first.",
+						Timestamp:   tsEarlyS1,
+					},
+				},
+				ToolCalls: []testjsonl.GeminiToolCall{
+					{
+						Name:        "read_file",
+						DisplayName: "ReadFile",
+						Args:        map[string]string{"file_path": "main.go"},
+					},
+				},
+				Model: "gemini-2.5-pro",
+			},
+		),
+	}
+
+	longMsg := generateLargeString(400)
+
+	tests := []struct {
+		name         string
+		content      string
+		wantMsgCount int
+		wantErr      bool
+		check        func(t *testing.T, sess *ParsedSession, msgs []ParsedMessage)
+	}{
+		{
+			name: "standard session",
+			content: testjsonl.GeminiSessionJSON(
+				"sess-uuid-1", hash, tsEarly, tsLateS5,
+				standardMessages,
+			),
+			wantMsgCount: 4,
+			check: func(t *testing.T, sess *ParsedSession, msgs []ParsedMessage) {
+				t.Helper()
+				assertSessionMeta(t, sess,
+					"gemini:sess-uuid-1", "my_project", AgentGemini,
+				)
+				if sess.FirstMessage != "Fix the login bug" {
+					t.Errorf("first_message = %q", sess.FirstMessage)
+				}
+				assertMessage(t, msgs[0], RoleUser, "Fix the login bug")
+				assertMessage(t, msgs[1], RoleAssistant, "Looking at")
+				if msgs[0].Ordinal != 0 || msgs[1].Ordinal != 1 {
+					t.Errorf("ordinals: %d, %d",
+						msgs[0].Ordinal, msgs[1].Ordinal)
+				}
+			},
+		},
+		{
+			name: "tool calls and thinking",
+			content: testjsonl.GeminiSessionJSON(
+				"sess-uuid-2", hash, tsEarly, tsEarlyS5,
+				toolCallMessages,
+			),
+			wantMsgCount: 2,
+			check: func(t *testing.T, sess *ParsedSession, msgs []ParsedMessage) {
+				t.Helper()
+				if !msgs[1].HasToolUse {
+					t.Error("msg[1] should have tool_use")
+				}
+				if !msgs[1].HasThinking {
+					t.Error("msg[1] should have thinking")
+				}
+				if !strings.Contains(msgs[1].Content, "[Thinking: Planning]") {
+					t.Errorf("missing thinking in content: %q", msgs[1].Content)
+				}
+				if !strings.Contains(msgs[1].Content, "[Read: main.go]") {
+					t.Errorf("missing tool call in content: %q", msgs[1].Content)
+				}
+			},
+		},
+		{
+			name: "only system messages",
+			content: testjsonl.GeminiSessionJSON(
+				"sess-uuid-3", hash, tsEarly, tsEarlyS5,
+				[]map[string]any{
+					testjsonl.GeminiInfoMsg("i1", tsEarly, "Starting session", "info"),
+					testjsonl.GeminiInfoMsg("e1", tsEarlyS1, "Some error", "error"),
+					testjsonl.GeminiInfoMsg("w1", tsEarlyS5, "Some warning", "warning"),
+				},
+			),
+			wantMsgCount: 0,
+		},
+		{
+			name: "empty messages array",
+			content: testjsonl.GeminiSessionJSON(
+				"sess-uuid-4", hash, tsEarly, tsEarlyS5,
+				[]map[string]any{},
+			),
+			wantMsgCount: 0,
+		},
+		{
+			name:    "malformed JSON",
+			content: "not valid json {{{",
+			wantErr: true,
+		},
+		{
+			name: "content as Part array",
+			content: testjsonl.GeminiSessionJSON(
+				"sess-uuid-5", hash, tsEarly, tsEarlyS5,
+				[]map[string]any{
+					{
+						"id":        "u1",
+						"timestamp": tsEarly,
+						"type":      "user",
+						"content": []map[string]string{
+							{"text": "part one"},
+							{"text": "part two"},
+						},
+					},
+				},
+			),
+			wantMsgCount: 1,
+			check: func(t *testing.T, _ *ParsedSession, msgs []ParsedMessage) {
+				t.Helper()
+				if !strings.Contains(msgs[0].Content, "part one") ||
+					!strings.Contains(msgs[0].Content, "part two") {
+					t.Errorf("content = %q", msgs[0].Content)
+				}
+			},
+		},
+		{
+			name: "first message truncation",
+			content: testjsonl.GeminiSessionJSON(
+				"sess-uuid-6", hash, tsEarly, tsEarlyS5,
+				[]map[string]any{
+					testjsonl.GeminiUserMsg("u1", tsEarly, longMsg),
+				},
+			),
+			wantMsgCount: 1,
+			check: func(t *testing.T, sess *ParsedSession, _ []ParsedMessage) {
+				t.Helper()
+				if len(sess.FirstMessage) != 303 {
+					t.Errorf("first_message length = %d, want 303",
+						len(sess.FirstMessage))
+				}
+			},
+		},
+		{
+			name: "timestamps from startTime and lastUpdated",
+			content: testjsonl.GeminiSessionJSON(
+				"sess-uuid-7", hash,
+				"2024-06-15T10:00:00Z",
+				"2024-06-15T11:30:00Z",
+				[]map[string]any{
+					testjsonl.GeminiUserMsg("u1", "2024-06-15T10:00:00Z", "hello"),
+				},
+			),
+			wantMsgCount: 1,
+			check: func(t *testing.T, sess *ParsedSession, _ []ParsedMessage) {
+				t.Helper()
+				wantStart := time.Date(2024, 6, 15, 10, 0, 0, 0, time.UTC)
+				wantEnd := time.Date(2024, 6, 15, 11, 30, 0, 0, time.UTC)
+				assertTimestamp(t, sess.StartedAt, wantStart)
+				assertTimestamp(t, sess.EndedAt, wantEnd)
+			},
+		},
+		{
+			name:    "missing sessionId",
+			content: `{"projectHash":"abc","startTime":"2024-01-01T00:00:00Z","lastUpdated":"2024-01-01T00:00:00Z","messages":[]}`,
+			wantErr: true,
+		},
+		{
+			name:    "missing file",
+			content: "", // special: test with nonexistent path
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var path string
+			if tt.name == "missing file" {
+				path = filepath.Join(t.TempDir(), "nonexistent.json")
+			} else {
+				path = createTestFile(t, "session.json", tt.content)
+			}
+
+			sess, msgs, err := ParseGeminiSession(
+				path, "my_project", "local",
+			)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr = %v", err, tt.wantErr)
+			}
+			if tt.wantErr {
+				return
+			}
+			if sess == nil {
+				t.Fatal("session is nil")
+			}
+			assertMessageCount(t, len(msgs), tt.wantMsgCount)
+			assertMessageCount(t, sess.MessageCount, tt.wantMsgCount)
+			if tt.check != nil {
+				tt.check(t, sess, msgs)
+			}
+		})
+	}
+}
+
+func TestFormatGeminiToolCall(t *testing.T) {
+	tests := []struct {
+		name string
+		json string
+		want string
+	}{
+		{
+			"read_file",
+			`{"name":"read_file","args":{"file_path":"main.go"},"displayName":"ReadFile"}`,
+			"[Read: main.go]",
+		},
+		{
+			"write_file",
+			`{"name":"write_file","args":{"file_path":"out.txt"},"displayName":"WriteFile"}`,
+			"[Write: out.txt]",
+		},
+		{
+			"edit_file",
+			`{"name":"edit_file","args":{"file_path":"fix.go"},"displayName":"EditFile"}`,
+			"[Write: fix.go]",
+		},
+		{
+			"run_command",
+			`{"name":"run_command","args":{"command":"go test ./..."},"displayName":"RunCommand"}`,
+			"[Bash]\n$ go test ./...",
+		},
+		{
+			"execute_command",
+			`{"name":"execute_command","args":{"command":"ls -la"},"displayName":"Exec"}`,
+			"[Bash]\n$ ls -la",
+		},
+		{
+			"list_directory",
+			`{"name":"list_directory","args":{"dir_path":"src"},"displayName":"ReadFolder"}`,
+			"[List: src]",
+		},
+		{
+			"search_files with query",
+			`{"name":"search_files","args":{"query":"TODO"},"displayName":"Search"}`,
+			"[Grep: TODO]",
+		},
+		{
+			"grep with pattern",
+			`{"name":"grep","args":{"pattern":"func main"},"displayName":"Grep"}`,
+			"[Grep: func main]",
+		},
+		{
+			"unknown tool with displayName",
+			`{"name":"custom_tool","args":{},"displayName":"CustomTool"}`,
+			"[Tool: CustomTool]",
+		},
+		{
+			"unknown tool without displayName",
+			`{"name":"custom_tool","args":{}}`,
+			"[Tool: custom_tool]",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tc := gjson.Parse(tt.json)
+			got := formatGeminiToolCall(tc)
+			if got != tt.want {
+				t.Errorf("formatGeminiToolCall = %q, want %q",
+					got, tt.want)
+			}
+		})
+	}
+}
+
+func TestGeminiSessionID(t *testing.T) {
+	data := []byte(`{"sessionId":"abc-123","messages":[]}`)
+	got := GeminiSessionID(data)
+	if got != "abc-123" {
+		t.Errorf("GeminiSessionID = %q, want %q", got, "abc-123")
+	}
+
+	got = GeminiSessionID([]byte(`{}`))
+	if got != "" {
+		t.Errorf("GeminiSessionID empty = %q, want empty", got)
+	}
+}

@@ -1,6 +1,9 @@
 package sync
 
 import (
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -247,4 +250,160 @@ func isAlphanumOrDashUnderscore(c rune) bool {
 		(c >= 'A' && c <= 'Z') ||
 		(c >= '0' && c <= '9') ||
 		c == '-' || c == '_'
+}
+
+// DiscoverGeminiSessions finds all session JSON files under
+// the Gemini directory (~/.gemini/tmp/*/chats/session-*.json).
+func DiscoverGeminiSessions(
+	geminiDir string,
+) []DiscoveredFile {
+	tmpDir := filepath.Join(geminiDir, "tmp")
+	hashDirs, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return nil
+	}
+
+	projectMap := buildGeminiProjectMap(geminiDir)
+
+	var files []DiscoveredFile
+	for _, hd := range hashDirs {
+		if !hd.IsDir() {
+			continue
+		}
+		hash := hd.Name()
+		chatsDir := filepath.Join(tmpDir, hash, "chats")
+		entries, err := os.ReadDir(chatsDir)
+		if err != nil {
+			continue
+		}
+
+		project := projectMap[hash]
+		if project == "" {
+			project = "unknown"
+		}
+
+		for _, sf := range entries {
+			if sf.IsDir() {
+				continue
+			}
+			name := sf.Name()
+			if !strings.HasPrefix(name, "session-") ||
+				!strings.HasSuffix(name, ".json") {
+				continue
+			}
+			files = append(files, DiscoveredFile{
+				Path:    filepath.Join(chatsDir, name),
+				Project: project,
+				Agent:   parser.AgentGemini,
+			})
+		}
+	}
+
+	sort.Slice(files, func(i, j int) bool {
+		return files[i].Path < files[j].Path
+	})
+	return files
+}
+
+// FindGeminiSourceFile locates a Gemini session file by its
+// session UUID. Searches all project hash directories.
+func FindGeminiSourceFile(
+	geminiDir, sessionID string,
+) string {
+	if !isValidSessionID(sessionID) {
+		return ""
+	}
+
+	tmpDir := filepath.Join(geminiDir, "tmp")
+	hashDirs, err := os.ReadDir(tmpDir)
+	if err != nil {
+		return ""
+	}
+
+	for _, hd := range hashDirs {
+		if !hd.IsDir() {
+			continue
+		}
+		chatsDir := filepath.Join(tmpDir, hd.Name(), "chats")
+		entries, err := os.ReadDir(chatsDir)
+		if err != nil {
+			continue
+		}
+		for _, sf := range entries {
+			if sf.IsDir() {
+				continue
+			}
+			name := sf.Name()
+			if !strings.HasPrefix(name, "session-") ||
+				!strings.HasSuffix(name, ".json") {
+				continue
+			}
+			// The UUID prefix appears in the filename:
+			// session-<timestamp>-<uuid-prefix>.json
+			if strings.Contains(name, sessionID[:8]) {
+				path := filepath.Join(chatsDir, name)
+				if confirmGeminiSessionID(
+					path, sessionID,
+				) {
+					return path
+				}
+			}
+		}
+	}
+	return ""
+}
+
+// confirmGeminiSessionID reads the sessionId field from a
+// Gemini file to confirm it matches the expected ID.
+func confirmGeminiSessionID(
+	path, sessionID string,
+) bool {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return parser.GeminiSessionID(data) == sessionID
+}
+
+// geminiProjectsFile holds the structure of
+// ~/.gemini/projects.json.
+type geminiProjectsFile struct {
+	Projects map[string]string `json:"projects"`
+}
+
+// buildGeminiProjectMap reads ~/.gemini/projects.json and
+// builds a map from project hash to resolved project name.
+func buildGeminiProjectMap(
+	geminiDir string,
+) map[string]string {
+	result := make(map[string]string)
+
+	data, err := os.ReadFile(
+		filepath.Join(geminiDir, "projects.json"),
+	)
+	if err != nil {
+		return result
+	}
+
+	var pf geminiProjectsFile
+	if err := json.Unmarshal(data, &pf); err != nil {
+		return result
+	}
+
+	for absPath := range pf.Projects {
+		hash := geminiPathHash(absPath)
+		project := parser.ExtractProjectFromCwd(absPath)
+		if project == "" {
+			project = "unknown"
+		}
+		result[hash] = project
+	}
+	return result
+}
+
+// geminiPathHash computes the SHA-256 hex hash of a path,
+// matching Gemini CLI's project hash algorithm.
+func geminiPathHash(path string) string {
+	h := sha256.Sum256([]byte(path))
+	return fmt.Sprintf("%x", h)
 }

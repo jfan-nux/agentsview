@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -48,7 +49,7 @@ func runServe(args []string) {
 
 	engine := sync.NewEngine(
 		database, cfg.ClaudeProjectDir,
-		cfg.CodexSessionsDir, "local",
+		cfg.CodexSessionsDir, cfg.GeminiDir, "local",
 	)
 
 	runInitialSync(engine)
@@ -156,6 +157,10 @@ func startFileWatcher(
 	}
 	if _, err := os.Stat(cfg.CodexSessionsDir); err == nil {
 		_ = watcher.WatchRecursive(cfg.CodexSessionsDir)
+	}
+	geminiTmp := filepath.Join(cfg.GeminiDir, "tmp")
+	if _, err := os.Stat(geminiTmp); err == nil {
+		_ = watcher.WatchRecursive(geminiTmp)
 	}
 	watcher.Start()
 	return watcher.Stop

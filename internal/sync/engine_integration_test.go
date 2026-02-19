@@ -32,7 +32,7 @@ func setupTestEnv(t *testing.T) *testEnv {
 	}
 
 	env.engine = sync.NewEngine(
-		env.db, env.claudeDir, env.codexDir, "local",
+		env.db, env.claudeDir, env.codexDir, "", "local",
 	)
 	return env
 }

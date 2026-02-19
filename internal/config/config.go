@@ -19,6 +19,7 @@ type Config struct {
 	NoBrowser        bool          `json:"no_browser"`
 	ClaudeProjectDir string        `json:"claude_project_dir"`
 	CodexSessionsDir string        `json:"codex_sessions_dir"`
+	GeminiDir        string        `json:"gemini_dir"`
 	DataDir          string        `json:"data_dir"`
 	DBPath           string        `json:"-"`
 	CursorSecret     string        `json:"cursor_secret"`
@@ -40,6 +41,7 @@ func Default() (Config, error) {
 		Port:             8080,
 		ClaudeProjectDir: filepath.Join(home, ".claude", "projects"),
 		CodexSessionsDir: filepath.Join(home, ".codex", "sessions"),
+		GeminiDir:        filepath.Join(home, ".gemini"),
 		DataDir:          dataDir,
 		DBPath:           filepath.Join(dataDir, "sessions.db"),
 		WriteTimeout:     30 * time.Second,
@@ -153,6 +155,9 @@ func (c *Config) loadEnv() {
 	}
 	if v := os.Getenv("CODEX_SESSIONS_DIR"); v != "" {
 		c.CodexSessionsDir = v
+	}
+	if v := os.Getenv("GEMINI_DIR"); v != "" {
+		c.GeminiDir = v
 	}
 	if v := os.Getenv("AGENT_VIEWER_DATA_DIR"); v != "" {
 		c.DataDir = v

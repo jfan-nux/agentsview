@@ -26,6 +26,7 @@ type Engine struct {
 	db            *db.DB
 	claudeDir     string
 	codexDir      string
+	geminiDir     string
 	machine       string
 	mu            gosync.RWMutex
 	lastSync      time.Time
@@ -39,12 +40,14 @@ type Engine struct {
 
 // NewEngine creates a sync engine.
 func NewEngine(
-	database *db.DB, claudeDir, codexDir, machine string,
+	database *db.DB,
+	claudeDir, codexDir, geminiDir, machine string,
 ) *Engine {
 	return &Engine{
 		db:          database,
 		claudeDir:   claudeDir,
 		codexDir:    codexDir,
+		geminiDir:   geminiDir,
 		machine:     machine,
 		failedFiles: make(map[string]int64),
 	}
@@ -69,14 +72,19 @@ type syncJob struct {
 	path string
 }
 
-// SyncAll discovers and syncs all Claude and Codex session files.
+// SyncAll discovers and syncs all session files from all agents.
 func (e *Engine) SyncAll(onProgress ProgressFunc) SyncStats {
 	claude := DiscoverClaudeProjects(e.claudeDir)
 	codex := DiscoverCodexSessions(e.codexDir)
+	gemini := DiscoverGeminiSessions(e.geminiDir)
 
-	all := make([]DiscoveredFile, 0, len(claude)+len(codex))
+	all := make(
+		[]DiscoveredFile, 0,
+		len(claude)+len(codex)+len(gemini),
+	)
 	all = append(all, claude...)
 	all = append(all, codex...)
+	all = append(all, gemini...)
 
 	if onProgress != nil {
 		onProgress(Progress{
@@ -225,6 +233,8 @@ func (e *Engine) processFile(
 		return e.processClaude(file, info)
 	case parser.AgentCodex:
 		return e.processCodex(file, info)
+	case parser.AgentGemini:
+		return e.processGemini(file, info)
 	default:
 		return processResult{
 			err: fmt.Errorf("unknown agent type: %s", file.Agent),
@@ -330,6 +340,31 @@ func (e *Engine) processCodex(
 	return processResult{sess: sess, msgs: msgs}
 }
 
+func (e *Engine) processGemini(
+	file DiscoveredFile, info os.FileInfo,
+) processResult {
+	sess, msgs, err := parser.ParseGeminiSession(
+		file.Path, file.Project, e.machine,
+	)
+	if err != nil {
+		return processResult{err: err}
+	}
+	if sess == nil {
+		return processResult{}
+	}
+
+	if e.shouldSkipFile(sess.ID, file.Path, info) {
+		return processResult{skip: true}
+	}
+
+	hash, err := ComputeFileHash(file.Path)
+	if err == nil {
+		sess.File.Hash = hash
+	}
+
+	return processResult{sess: sess, msgs: msgs}
+}
+
 type pendingWrite struct {
 	sess parser.ParsedSession
 	msgs []parser.ParsedMessage
@@ -395,13 +430,19 @@ func countMessages(batch []pendingWrite) int {
 	return n
 }
 
-// FindSourceFile locates the original JSONL for a session ID.
+// FindSourceFile locates the original source file for a
+// session ID.
 func (e *Engine) FindSourceFile(sessionID string) string {
-	if strings.HasPrefix(sessionID, "codex:") {
-		raw := sessionID[6:]
-		return FindCodexSourceFile(e.codexDir, raw)
+	switch {
+	case strings.HasPrefix(sessionID, "codex:"):
+		return FindCodexSourceFile(e.codexDir, sessionID[6:])
+	case strings.HasPrefix(sessionID, "gemini:"):
+		return FindGeminiSourceFile(
+			e.geminiDir, sessionID[7:],
+		)
+	default:
+		return FindClaudeSourceFile(e.claudeDir, sessionID)
 	}
-	return FindClaudeSourceFile(e.claudeDir, sessionID)
 }
 
 // SyncSingleSession re-syncs a single session by its ID.
@@ -415,9 +456,14 @@ func (e *Engine) SyncSingleSession(sessionID string) error {
 		)
 	}
 
-	agent := parser.AgentClaude
-	if strings.HasPrefix(sessionID, "codex:") {
+	var agent parser.AgentType
+	switch {
+	case strings.HasPrefix(sessionID, "codex:"):
 		agent = parser.AgentCodex
+	case strings.HasPrefix(sessionID, "gemini:"):
+		agent = parser.AgentGemini
+	default:
+		agent = parser.AgentClaude
 	}
 
 	// Reuse processFile for tombstone check, stat, and hash
