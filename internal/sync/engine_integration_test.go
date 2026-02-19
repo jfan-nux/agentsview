@@ -1,7 +1,6 @@
 package sync_test
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -112,21 +111,9 @@ func TestSyncEngineIntegration(t *testing.T) {
 	})
 
 	// Verify messages
-	msgs, err := env.db.GetAllMessages(
-		context.Background(), "test-session",
+	assertMessageRoles(
+		t, env.db, "test-session", "user", "assistant",
 	)
-	if err != nil {
-		t.Fatalf("GetAllMessages: %v", err)
-	}
-	if len(msgs) != 2 {
-		t.Fatalf("got %d messages, want 2", len(msgs))
-	}
-	if msgs[0].Role != "user" {
-		t.Errorf("msg[0].Role = %q", msgs[0].Role)
-	}
-	if msgs[1].Role != "assistant" {
-		t.Errorf("msg[1].Role = %q", msgs[1].Role)
-	}
 
 	// Second sync should skip (unchanged files)
 	runSyncAndAssert(t, env.engine, 0, 1)

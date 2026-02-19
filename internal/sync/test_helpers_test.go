@@ -99,6 +99,31 @@ func (e *testEnv) assertHashRoundTrip(
 	runSyncAndAssert(t, e.engine, 0, 1)
 }
 
+// assertMessageRoles verifies that a session's messages have
+// the expected roles in order.
+func assertMessageRoles(
+	t *testing.T, database *db.DB,
+	sessionID string, wantRoles ...string,
+) {
+	t.Helper()
+	msgs, err := database.GetAllMessages(
+		context.Background(), sessionID,
+	)
+	if err != nil {
+		t.Fatalf("GetAllMessages(%q): %v", sessionID, err)
+	}
+	if len(msgs) != len(wantRoles) {
+		t.Fatalf("got %d messages, want %d",
+			len(msgs), len(wantRoles))
+	}
+	for i, want := range wantRoles {
+		if msgs[i].Role != want {
+			t.Errorf("msgs[%d].Role = %q, want %q",
+				i, msgs[i].Role, want)
+		}
+	}
+}
+
 // updateSessionProject fetches the session, updates its
 // Project field, and upserts it back. Reduces boilerplate
 // for tests that need to override a single field.
