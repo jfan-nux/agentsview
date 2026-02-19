@@ -60,10 +60,17 @@
         item.ordinals.includes(ordinal),
       );
 
-      if (!found && !showThinking && messages.messages.length > 0) {
-        // Target is likely a thinking-only message — enable thinking
-        ui.showThinking = true;
-        return; // effect re-runs with showThinking=true
+      if (!found && !showThinking) {
+        // Only auto-enable thinking if the ordinal is loaded
+        // but filtered out. If it's outside the loaded window,
+        // try loading it first instead of changing the filter.
+        const loaded = messages.messages.some(
+          (m) => m.ordinal === ordinal,
+        );
+        if (loaded) {
+          ui.showThinking = true;
+          return; // effect re-runs with showThinking=true
+        }
       }
 
       messageListRef.scrollToOrdinal(ordinal);

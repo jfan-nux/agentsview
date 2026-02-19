@@ -3,6 +3,7 @@ package server_test
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/wesm/agentsview/internal/db"
@@ -100,6 +101,113 @@ func TestAnalyticsSummary(t *testing.T) {
 			"/api/v1/analytics/summary?timezone=Fake/Zone")
 		assertStatus(t, w, http.StatusBadRequest)
 	})
+}
+
+func TestAnalyticsSummary_DateValidation(t *testing.T) {
+	te := setup(t)
+
+	tests := []struct {
+		name   string
+		query  string
+		status int
+	}{
+		{
+			"InvalidFromFormat",
+			"?from=not-a-date&to=2024-06-03",
+			http.StatusBadRequest,
+		},
+		{
+			"InvalidToFormat",
+			"?from=2024-06-01&to=06-03-2024",
+			http.StatusBadRequest,
+		},
+		{
+			"FromAfterTo",
+			"?from=2024-07-01&to=2024-06-01",
+			http.StatusBadRequest,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := te.get(t,
+				"/api/v1/analytics/summary"+tt.query)
+			assertStatus(t, w, tt.status)
+		})
+	}
+}
+
+func TestAnalyticsErrorRedaction(t *testing.T) {
+	te := setup(t)
+	seedAnalyticsEnv(t, te)
+
+	// Valid request should succeed
+	w := te.get(t,
+		"/api/v1/analytics/summary?from=2024-06-01&to=2024-06-03")
+	assertStatus(t, w, http.StatusOK)
+
+	// Force a DB error by closing the database
+	te.db.Close()
+
+	endpoints := []string{
+		"/api/v1/analytics/summary?from=2024-06-01&to=2024-06-03",
+		"/api/v1/analytics/activity?from=2024-06-01&to=2024-06-03",
+		"/api/v1/analytics/heatmap?from=2024-06-01&to=2024-06-03",
+		"/api/v1/analytics/projects?from=2024-06-01&to=2024-06-03",
+	}
+	for _, ep := range endpoints {
+		t.Run(ep, func(t *testing.T) {
+			w := te.get(t, ep)
+			assertStatus(t, w, http.StatusInternalServerError)
+			body := w.Body.String()
+			if strings.Contains(body, "sql") ||
+				strings.Contains(body, "database") {
+				t.Errorf(
+					"response exposes internal error: %s",
+					body,
+				)
+			}
+		})
+	}
+}
+
+func TestSessionsDateValidation(t *testing.T) {
+	te := setup(t)
+
+	tests := []struct {
+		name   string
+		query  string
+		status int
+	}{
+		{
+			"InvalidDateFormat",
+			"?date=not-a-date",
+			http.StatusBadRequest,
+		},
+		{
+			"InvalidDateFromFormat",
+			"?date_from=2024/06/01",
+			http.StatusBadRequest,
+		},
+		{
+			"DateFromAfterDateTo",
+			"?date_from=2024-07-01&date_to=2024-06-01",
+			http.StatusBadRequest,
+		},
+		{
+			"ValidDateRange",
+			"?date_from=2024-06-01&date_to=2024-06-03",
+			http.StatusOK,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := te.get(t,
+				"/api/v1/sessions"+tt.query)
+			assertStatus(t, w, tt.status)
+		})
+	}
 }
 
 func TestAnalyticsActivity(t *testing.T) {

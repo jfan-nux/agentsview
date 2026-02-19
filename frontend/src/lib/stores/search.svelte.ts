@@ -8,6 +8,7 @@ class SearchStore {
   isSearching: boolean = $state(false);
 
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private version: number = 0;
 
   search(q: string, project?: string) {
     this.query = q;
@@ -24,7 +25,7 @@ class SearchStore {
     }
 
     this.debounceTimer = setTimeout(() => {
-      this.executeSearch(q);
+      this.executeSearch(q, this.project);
     }, 300);
   }
 
@@ -38,23 +39,21 @@ class SearchStore {
     }
   }
 
-  private async executeSearch(q: string) {
+  private async executeSearch(q: string, project: string) {
+    const v = ++this.version;
     this.isSearching = true;
     try {
       const res = await api.search(q, {
-        project: this.project || undefined,
+        project: project || undefined,
         limit: 30,
       });
-      // Only apply if query hasn't changed during search
-      if (this.query === q) {
-        this.results = res.results;
-      }
+      if (this.version !== v) return;
+      this.results = res.results;
     } catch {
-      if (this.query === q) {
-        this.results = [];
-      }
+      if (this.version !== v) return;
+      this.results = [];
     } finally {
-      if (this.query === q) {
+      if (this.version === v) {
         this.isSearching = false;
       }
     }

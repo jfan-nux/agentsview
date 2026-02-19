@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func seedAnalyticsData(t *testing.T, d *DB) {
@@ -417,6 +418,128 @@ func TestGetAnalyticsProjects(t *testing.T) {
 			t.Errorf("len(Projects) = %d, want 0", len(resp.Projects))
 		}
 	})
+}
+
+func TestMedianInt(t *testing.T) {
+	tests := []struct {
+		name   string
+		sorted []int
+		want   int
+	}{
+		{"Empty", []int{}, 0},
+		{"Single", []int{5}, 5},
+		{"OddCount", []int{1, 3, 7}, 3},
+		{"EvenCount", []int{1, 3, 7, 9}, 5},
+		{"EvenCountTwo", []int{10, 20}, 15},
+		{"EvenCountFour", []int{2, 4, 6, 8}, 5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := medianInt(tt.sorted, len(tt.sorted))
+			if got != tt.want {
+				t.Errorf(
+					"medianInt(%v) = %d, want %d",
+					tt.sorted, got, tt.want,
+				)
+			}
+		})
+	}
+}
+
+func TestLocalDate(t *testing.T) {
+	utc := time.UTC
+
+	tests := []struct {
+		name string
+		ts   string
+		want string
+	}{
+		{"RFC3339", "2024-06-01T15:00:00Z", "2024-06-01"},
+		{"RFC3339Nano", "2024-06-01T15:00:00.123Z", "2024-06-01"},
+		{"NoFraction", "2024-06-01T15:00:00Z", "2024-06-01"},
+		{"Fallback10Char", "2024-06-01", "2024-06-01"},
+		{"Short", "2024", ""},
+		{"Empty", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := localDate(tt.ts, utc)
+			if got != tt.want {
+				t.Errorf(
+					"localDate(%q) = %q, want %q",
+					tt.ts, got, tt.want,
+				)
+			}
+		})
+	}
+}
+
+func TestMostActiveTieBreak(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+
+	// Two projects with equal message counts
+	insertSession(t, d, "t1", "zebra", func(s *Session) {
+		s.StartedAt = strPtr("2024-06-01T09:00:00Z")
+		s.MessageCount = 20
+		s.Agent = "claude"
+	})
+	insertSession(t, d, "t2", "alpha", func(s *Session) {
+		s.StartedAt = strPtr("2024-06-01T10:00:00Z")
+		s.MessageCount = 20
+		s.Agent = "claude"
+	})
+
+	f := AnalyticsFilter{
+		From:     "2024-06-01",
+		To:       "2024-06-01",
+		Timezone: "UTC",
+	}
+	s, err := d.GetAnalyticsSummary(ctx, f)
+	if err != nil {
+		t.Fatalf("GetAnalyticsSummary: %v", err)
+	}
+
+	// Alphabetically, "alpha" < "zebra"
+	if s.MostActive != "alpha" {
+		t.Errorf(
+			"MostActive = %q, want alphabetically first (alpha)",
+			s.MostActive,
+		)
+	}
+}
+
+func TestEvenCountMedianInSummary(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+
+	// 4 sessions: message counts [5, 10, 20, 30]
+	for i, mc := range []int{10, 30, 5, 20} {
+		id := fmt.Sprintf("e%d", i)
+		insertSession(t, d, id, "proj", func(s *Session) {
+			ts := fmt.Sprintf("2024-06-01T%02d:00:00Z", i+9)
+			s.StartedAt = &ts
+			s.MessageCount = mc
+			s.Agent = "claude"
+		})
+	}
+
+	f := AnalyticsFilter{
+		From:     "2024-06-01",
+		To:       "2024-06-01",
+		Timezone: "UTC",
+	}
+	s, err := d.GetAnalyticsSummary(ctx, f)
+	if err != nil {
+		t.Fatalf("GetAnalyticsSummary: %v", err)
+	}
+
+	// Sorted: [5, 10, 20, 30] → median = (10+20)/2 = 15
+	if s.MedianMessages != 15 {
+		t.Errorf(
+			"MedianMessages = %d, want 15", s.MedianMessages,
+		)
+	}
 }
 
 func TestAnalyticsTimezone(t *testing.T) {

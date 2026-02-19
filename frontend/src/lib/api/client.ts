@@ -138,24 +138,60 @@ export interface SyncEventCallbacks {
 
 export function triggerSync(
   callbacks: SyncEventCallbacks,
-): EventSource {
-  const es = new EventSource(`${BASE}/sync`);
+): AbortController {
+  const controller = new AbortController();
 
-  es.addEventListener("progress", (e: MessageEvent) => {
-    callbacks.onProgress?.(JSON.parse(e.data) as SyncProgress);
-  });
+  fetch(`${BASE}/sync`, {
+    method: "POST",
+    signal: controller.signal,
+  })
+    .then(async (res) => {
+      if (!res.ok || !res.body) {
+        throw new Error(`Sync request failed: ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
 
-  es.addEventListener("done", (e: MessageEvent) => {
-    callbacks.onDone?.(JSON.parse(e.data) as SyncStats);
-    es.close();
-  });
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
 
-  es.onerror = () => {
-    callbacks.onError?.(new Error("Sync stream error"));
-    es.close();
-  };
+        // Parse SSE frames from the buffer
+        let idx: number;
+        while ((idx = buf.indexOf("\n\n")) !== -1) {
+          const frame = buf.slice(0, idx);
+          buf = buf.slice(idx + 2);
 
-  return es;
+          let event = "";
+          let data = "";
+          for (const line of frame.split("\n")) {
+            if (line.startsWith("event: ")) {
+              event = line.slice(7);
+            } else if (line.startsWith("data: ")) {
+              data = line.slice(6);
+            }
+          }
+
+          if (event === "progress" && data) {
+            callbacks.onProgress?.(
+              JSON.parse(data) as SyncProgress,
+            );
+          } else if (event === "done" && data) {
+            callbacks.onDone?.(
+              JSON.parse(data) as SyncStats,
+            );
+          }
+        }
+      }
+    })
+    .catch((err) => {
+      if (err instanceof DOMException && err.name === "AbortError") return;
+      callbacks.onError?.(err instanceof Error ? err : new Error(String(err)));
+    });
+
+  return controller;
 }
 
 /** Watch a session for live updates via SSE */
