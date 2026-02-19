@@ -39,7 +39,7 @@ function resetStore() {
   // Reset private state for loadProjects dedup.
   // Access via any to bypass TS visibility.
   (sessions as any).projectsLoaded = false;
-  (sessions as any).projectsLoading = false;
+  (sessions as any).projectsPromise = null;
 }
 
 describe("SessionsStore.initFromParams", () => {

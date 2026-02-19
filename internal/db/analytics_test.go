@@ -1233,6 +1233,42 @@ func TestGetAnalyticsVelocity(t *testing.T) {
 			)
 		}
 	})
+
+	t.Run("NegativeDeltaClampsToZero", func(t *testing.T) {
+		d2 := testDB(t)
+		insertSession(t, d2, "v6", "proj", func(s *Session) {
+			s.StartedAt = Ptr("2024-06-01T09:00:00Z")
+			s.MessageCount = 2
+			s.Agent = "claude"
+		})
+		// First user has a later timestamp than the first
+		// assistant (extreme clock skew). Delta would be
+		// negative; we clamp to 0 rather than dropping.
+		insertMessages(t, d2,
+			Message{
+				SessionID: "v6", Ordinal: 0, Role: "user",
+				Content: "hello", ContentLength: 5,
+				Timestamp: "2024-06-01T09:00:30Z",
+			},
+			Message{
+				SessionID: "v6", Ordinal: 1,
+				Role:    "assistant",
+				Content: "hi", ContentLength: 2,
+				Timestamp: "2024-06-01T09:00:10Z",
+			},
+		)
+		resp, err := d2.GetAnalyticsVelocity(ctx, baseFilter())
+		if err != nil {
+			t.Fatalf("GetAnalyticsVelocity: %v", err)
+		}
+		// Negative delta clamped to 0
+		if resp.Overall.FirstResponseSec.P50 != 0.0 {
+			t.Errorf(
+				"FirstResponse P50 = %f, want 0.0",
+				resp.Overall.FirstResponseSec.P50,
+			)
+		}
+	})
 }
 
 func TestVelocityChunkedQuery(t *testing.T) {

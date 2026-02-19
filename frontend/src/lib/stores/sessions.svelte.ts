@@ -17,7 +17,7 @@ class SessionsStore {
 
   private loadVersion: number = 0;
   private projectsLoaded: boolean = false;
-  private projectsLoading: boolean = false;
+  private projectsPromise: Promise<void> | null = null;
 
   get activeSession(): Session | undefined {
     return this.sessions.find(
@@ -104,15 +104,18 @@ class SessionsStore {
   }
 
   async loadProjects() {
-    if (this.projectsLoaded || this.projectsLoading) return;
-    this.projectsLoading = true;
-    try {
-      const res = await api.getProjects();
-      this.projects = res.projects;
-      this.projectsLoaded = true;
-    } finally {
-      this.projectsLoading = false;
-    }
+    if (this.projectsLoaded) return;
+    if (this.projectsPromise) return this.projectsPromise;
+    this.projectsPromise = (async () => {
+      try {
+        const res = await api.getProjects();
+        this.projects = res.projects;
+        this.projectsLoaded = true;
+      } finally {
+        this.projectsPromise = null;
+      }
+    })();
+    return this.projectsPromise;
   }
 
   selectSession(id: string) {

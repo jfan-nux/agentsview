@@ -1332,12 +1332,16 @@ func (db *DB) GetAnalyticsVelocity(
 		}
 		if firstUser != nil && firstAsst != nil {
 			delta := firstAsst.ts.Sub(firstUser.ts).Seconds()
-			if delta > 0 {
-				for _, a := range accums {
-					a.firstResponses = append(
-						a.firstResponses, delta,
-					)
-				}
+			// Clamp negative deltas to 0: ordinal order is
+			// authoritative, so a negative delta means clock
+			// skew, not a missing response.
+			if delta < 0 {
+				delta = 0
+			}
+			for _, a := range accums {
+				a.firstResponses = append(
+					a.firstResponses, delta,
+				)
 			}
 		}
 
