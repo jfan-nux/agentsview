@@ -70,7 +70,7 @@
   }
 
   function handleCellClick(cell: DayCell) {
-    analytics.setDateRange(cell.date, cell.date);
+    analytics.selectDate(cell.date);
   }
 
   // Use a simple pre-computed grid
@@ -196,16 +196,18 @@
               rx="2"
               fill={levelColor(cell.level)}
               class="heatmap-cell"
-              class:clickable={cell.value > 0}
+              class:clickable={cell.value > 0 || analytics.selectedDate === cell.date}
+              class:selected={analytics.selectedDate === cell.date}
               role="button"
               tabindex="-1"
               onmouseenter={(e) => handleCellHover(e, cell)}
               onmouseleave={handleCellLeave}
               onclick={() => {
-                if (cell.value > 0) handleCellClick(cell);
+                if (cell.value > 0 || analytics.selectedDate === cell.date)
+                  handleCellClick(cell);
               }}
               onkeydown={(e) => {
-                if (e.key === "Enter" && cell.value > 0)
+                if (e.key === "Enter" && (cell.value > 0 || analytics.selectedDate === cell.date))
                   handleCellClick(cell);
               }}
             />
@@ -299,6 +301,11 @@
     opacity: 0.8;
     stroke: var(--text-muted);
     stroke-width: 1;
+  }
+
+  .heatmap-cell.selected {
+    stroke: var(--text-primary);
+    stroke-width: 2;
   }
 
   .tooltip {

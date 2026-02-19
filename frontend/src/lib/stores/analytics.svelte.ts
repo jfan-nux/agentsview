@@ -37,6 +37,7 @@ class AnalyticsStore {
   to: string = $state(today());
   granularity: string = $state("day");
   metric: string = $state("messages");
+  selectedDate: string | null = $state(null);
 
   summary = $state<AnalyticsSummary | null>(null);
   activity = $state<ActivityResponse | null>(null);
@@ -73,6 +74,20 @@ class AnalyticsStore {
     };
   }
 
+  // Returns params narrowed to selectedDate when one is active.
+  // Used by summary, activity, and projects — but not heatmap.
+  private filterParams(): AnalyticsParams {
+    if (this.selectedDate) {
+      return {
+        from: this.selectedDate,
+        to: this.selectedDate,
+        timezone:
+          Intl.DateTimeFormat().resolvedOptions().timeZone,
+      };
+    }
+    return this.baseParams();
+  }
+
   async fetchAll() {
     await Promise.all([
       this.fetchSummary(),
@@ -87,7 +102,7 @@ class AnalyticsStore {
     this.loading.summary = true;
     this.errors.summary = null;
     try {
-      const data = await getAnalyticsSummary(this.baseParams());
+      const data = await getAnalyticsSummary(this.filterParams());
       if (this.versions.summary === v) {
         this.summary = data;
       }
@@ -109,7 +124,7 @@ class AnalyticsStore {
     this.errors.activity = null;
     try {
       const data = await getAnalyticsActivity({
-        ...this.baseParams(),
+        ...this.filterParams(),
         granularity: this.granularity,
       });
       if (this.versions.activity === v) {
@@ -157,7 +172,7 @@ class AnalyticsStore {
     this.errors.projects = null;
     try {
       const data = await getAnalyticsProjects(
-        this.baseParams(),
+        this.filterParams(),
       );
       if (this.versions.projects === v) {
         this.projects = data;
@@ -177,8 +192,20 @@ class AnalyticsStore {
   setDateRange(from: string, to: string) {
     this.from = from;
     this.to = to;
+    this.selectedDate = null;
     router.navigate("analytics", { from, to });
     this.fetchAll();
+  }
+
+  selectDate(date: string) {
+    if (this.selectedDate === date) {
+      this.selectedDate = null;
+    } else {
+      this.selectedDate = date;
+    }
+    this.fetchSummary();
+    this.fetchActivity();
+    this.fetchProjects();
   }
 
   setGranularity(g: string) {
