@@ -6,19 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/wesm/agentsview/internal/config"
 )
 
 func TestWithTimeout_Timeout(t *testing.T) {
 	t.Parallel()
 
-	cfg := config.Config{
-		WriteTimeout: 10 * time.Millisecond,
-	}
-	s := &Server{
-		cfg: cfg,
-	}
+	s := newTestServerMinimal(t, 10*time.Millisecond)
 
 	slowHandler := func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(50 * time.Millisecond)
@@ -42,12 +35,7 @@ func TestWithTimeout_Timeout(t *testing.T) {
 func TestWithTimeout_Success(t *testing.T) {
 	t.Parallel()
 
-	cfg := config.Config{
-		WriteTimeout: 100 * time.Millisecond,
-	}
-	s := &Server{
-		cfg: cfg,
-	}
+	s := newTestServerMinimal(t, 100*time.Millisecond)
 
 	fastHandler := func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Custom", "value")

@@ -135,6 +135,19 @@ func assertContentType(
 	}
 }
 
+// newTestServerMinimal creates a lightweight Server with only the
+// config set (no database, engine, or temp dirs). Use this for
+// handler-level tests that only need withTimeout or similar
+// config-driven wrappers.
+func newTestServerMinimal(
+	t *testing.T, timeout time.Duration,
+) *Server {
+	t.Helper()
+	return &Server{
+		cfg: config.Config{WriteTimeout: timeout},
+	}
+}
+
 // expiredCtx returns a context with a deadline in the past.
 func expiredCtx(
 	t *testing.T,
