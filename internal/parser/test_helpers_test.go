@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"bytes"
+	"log"
 	"strings"
 	"testing"
 	"time"
@@ -76,6 +78,77 @@ func assertTimestamp(t *testing.T, got time.Time, want time.Time) {
 	if !got.Equal(want) {
 		t.Errorf("timestamp = %v, want %v", got, want)
 	}
+}
+
+func assertZeroTimestamp(
+	t *testing.T, ts time.Time, label string,
+) {
+	t.Helper()
+	if !ts.IsZero() {
+		t.Errorf("%s = %v, want zero", label, ts)
+	}
+}
+
+// captureLog redirects log output to a buffer for the
+// duration of the test and restores it on cleanup.
+func captureLog(t *testing.T) *bytes.Buffer {
+	t.Helper()
+	var buf bytes.Buffer
+	old := log.Writer()
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(old) })
+	return &buf
+}
+
+func assertLogContains(
+	t *testing.T, buf *bytes.Buffer, substrs ...string,
+) {
+	t.Helper()
+	got := buf.String()
+	for _, s := range substrs {
+		if !strings.Contains(got, s) {
+			t.Errorf("log missing %q, got: %q", s, got)
+		}
+	}
+}
+
+func assertLogNotContains(
+	t *testing.T, buf *bytes.Buffer, substrs ...string,
+) {
+	t.Helper()
+	got := buf.String()
+	for _, s := range substrs {
+		if strings.Contains(got, s) {
+			t.Errorf(
+				"log should not contain %q, got: %q",
+				s, got,
+			)
+		}
+	}
+}
+
+func assertLogEmpty(t *testing.T, buf *bytes.Buffer) {
+	t.Helper()
+	if buf.Len() > 0 {
+		t.Errorf(
+			"expected no log output, got: %q",
+			buf.String(),
+		)
+	}
+}
+
+func parseClaudeTestFile(
+	t *testing.T, name, content, project string,
+) (ParsedSession, []ParsedMessage) {
+	t.Helper()
+	path := createTestFile(t, name, content)
+	sess, msgs, err := ParseClaudeSession(
+		path, project, "local",
+	)
+	if err != nil {
+		t.Fatalf("ParseClaudeSession: %v", err)
+	}
+	return sess, msgs
 }
 
 func joinJSONL(lines ...string) string {

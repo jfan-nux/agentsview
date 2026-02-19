@@ -1,8 +1,6 @@
 package parser
 
 import (
-	"bytes"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -396,13 +394,9 @@ func TestParseTimestamp(t *testing.T) {
 func TestClaudeSessionTimestampSemantics(t *testing.T) {
 	t.Run("snapshot.timestamp fallback", func(t *testing.T) {
 		content := claudeSnapshotJSON("2024-06-15T12:00:00Z")
-		path := createTestFile(t, "ts-fallback.jsonl", content)
-		sess, msgs, err := ParseClaudeSession(
-			path, "proj", "local",
+		sess, msgs := parseClaudeTestFile(
+			t, "ts-fallback.jsonl", content, "proj",
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
 		wantTS := time.Date(
 			2024, 6, 15, 12, 0, 0, 0, time.UTC,
 		)
@@ -417,13 +411,9 @@ func TestClaudeSessionTimestampSemantics(t *testing.T) {
 
 	t.Run("offset timestamp normalized to UTC", func(t *testing.T) {
 		content := claudeUserJSON("hello", "2024-06-15T17:00:00+05:00")
-		path := createTestFile(t, "ts-offset.jsonl", content)
-		sess, msgs, err := ParseClaudeSession(
-			path, "proj", "local",
+		sess, msgs := parseClaudeTestFile(
+			t, "ts-offset.jsonl", content, "proj",
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
 		wantUTC := time.Date(
 			2024, 6, 15, 12, 0, 0, 0, time.UTC,
 		)
@@ -437,128 +427,67 @@ func TestClaudeSessionTimestampSemantics(t *testing.T) {
 
 	t.Run("unparseable timestamp yields zero", func(t *testing.T) {
 		content := claudeUserJSON("hello", "garbage")
-		path := createTestFile(t, "ts-bad.jsonl", content)
-		sess, msgs, err := ParseClaudeSession(
-			path, "proj", "local",
+		sess, msgs := parseClaudeTestFile(
+			t, "ts-bad.jsonl", content, "proj",
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-		if !sess.StartedAt.IsZero() {
-			t.Errorf(
-				"StartedAt = %v, want zero",
-				sess.StartedAt,
-			)
-		}
+		assertZeroTimestamp(t, sess.StartedAt, "StartedAt")
 		if len(msgs) != 1 {
 			t.Fatalf("got %d messages, want 1", len(msgs))
 		}
-		if !msgs[0].Timestamp.IsZero() {
-			t.Errorf(
-				"msg timestamp = %v, want zero",
-				msgs[0].Timestamp,
-			)
-		}
+		assertZeroTimestamp(t, msgs[0].Timestamp, "msg timestamp")
 	})
 
 	t.Run("invalid primary but valid fallback logs no warning", func(t *testing.T) {
-		// Construct JSON with invalid primary timestamp and valid snapshot timestamp
 		content := `{"type":"user","timestamp":"garbage","snapshot":{"timestamp":"2024-06-15T12:00:00Z"},"message":{"content":"hello"}}` + "\n"
-		path := createTestFile(t, "ts-mixed.jsonl", content)
+		buf := captureLog(t)
 
-		// Capture logs to verify no warning is emitted
-		var buf bytes.Buffer
-		old := log.Writer()
-		log.SetOutput(&buf)
-		defer log.SetOutput(old)
-
-		sess, msgs, err := ParseClaudeSession(
-			path, "proj", "local",
+		sess, msgs := parseClaudeTestFile(
+			t, "ts-mixed.jsonl", content, "proj",
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
 
-		// Verify parsing succeeded using fallback
 		wantTS := time.Date(2024, 6, 15, 12, 0, 0, 0, time.UTC)
 		assertTimestamp(t, sess.StartedAt, wantTS)
 		if len(msgs) != 1 {
 			t.Fatalf("got %d messages, want 1", len(msgs))
 		}
 		assertTimestamp(t, msgs[0].Timestamp, wantTS)
-
-		// Verify no log output
-		if buf.Len() > 0 {
-			t.Errorf("expected no log output, got: %q", buf.String())
-		}
+		assertLogEmpty(t, buf)
 	})
 
 	t.Run("both timestamps invalid logs warning", func(t *testing.T) {
-		// Construct JSON with invalid primary and invalid snapshot timestamp
 		content := `{"type":"user","timestamp":"garbage1","snapshot":{"timestamp":"garbage2"},"message":{"content":"hello"}}` + "\n"
-		path := createTestFile(t, "ts-invalid-both.jsonl", content)
+		buf := captureLog(t)
 
-		// Capture logs to verify warning is emitted
-		var buf bytes.Buffer
-		old := log.Writer()
-		log.SetOutput(&buf)
-		defer log.SetOutput(old)
-
-		sess, _, err := ParseClaudeSession(
-			path, "proj", "local",
+		sess, _ := parseClaudeTestFile(
+			t, "ts-invalid-both.jsonl", content, "proj",
 		)
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
 
-		// Verify timestamp is zero
-		if !sess.StartedAt.IsZero() {
-			t.Errorf("StartedAt = %v, want zero", sess.StartedAt)
-		}
-
-		// Verify log output contains warning
-		gotLog := buf.String()
-		if !strings.Contains(gotLog, "unparseable timestamp") {
-			t.Errorf("expected warning in log, got: %q", gotLog)
-		}
-		if !strings.Contains(gotLog, "garbage1") {
-			t.Errorf("expected log to contain 'garbage1', got: %q", gotLog)
-		}
+		assertZeroTimestamp(t, sess.StartedAt, "StartedAt")
+		assertLogContains(t, buf,
+			"unparseable timestamp", "garbage1",
+		)
 	})
 
 	t.Run("very long invalid timestamp is truncated in log", func(t *testing.T) {
 		longInvalid := strings.Repeat("x", 200)
 		content := `{"type":"user","timestamp":"` + longInvalid + `","message":{"content":"hello"}}` + "\n"
+		buf := captureLog(t)
+
 		path := createTestFile(t, "ts-long-invalid.jsonl", content)
-
-		// Capture logs
-		var buf bytes.Buffer
-		old := log.Writer()
-		log.SetOutput(&buf)
-		defer log.SetOutput(old)
-
 		_, _, err := ParseClaudeSession(
 			path, "proj", "local",
 		)
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("ParseClaudeSession: %v", err)
 		}
 
-		// Verify log output contains truncated timestamp
-		gotLog := buf.String()
-		if !strings.Contains(gotLog, "unparseable timestamp") {
-			t.Errorf("expected warning in log, got: %q", gotLog)
+		assertLogContains(t, buf,
+			"unparseable timestamp", "x...",
+		)
+		if buf.Len() > 1000 {
+			t.Errorf("log output too long: %d bytes", buf.Len())
 		}
-		if !strings.Contains(gotLog, "x"+"...") {
-			t.Errorf("expected log to contain truncation '...', got: %q", gotLog)
-		}
-		if len(gotLog) > 1000 { // Sanity check against dumping the whole thing
-			t.Errorf("log output too long: %d bytes", len(gotLog))
-		}
-		// Check that we don't see the full 200 chars
-		if strings.Contains(gotLog, longInvalid) {
-			t.Errorf("log should not contain full 200-char string")
-		}
+		assertLogNotContains(t, buf, longInvalid)
 	})
 }
 
@@ -899,65 +828,42 @@ func TestCodexSessionTimestampSemantics(t *testing.T) {
 	t.Run("invalid timestamp logs warning", func(t *testing.T) {
 		content := codexMsgJSON("user", "hello", "garbage") + "\n"
 		path := createTestFile(t, "codex-ts-invalid.jsonl", content)
-
-		var buf bytes.Buffer
-		old := log.Writer()
-		log.SetOutput(&buf)
-		defer log.SetOutput(old)
+		buf := captureLog(t)
 
 		sess, msgs, err := ParseCodexSession(
 			path, "local", false,
 		)
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("ParseCodexSession: %v", err)
 		}
 
-		if !sess.StartedAt.IsZero() {
-			t.Errorf("StartedAt = %v, want zero", sess.StartedAt)
-		}
+		assertZeroTimestamp(t, sess.StartedAt, "StartedAt")
 		if len(msgs) != 1 {
 			t.Fatalf("got %d messages, want 1", len(msgs))
 		}
-		if !msgs[0].Timestamp.IsZero() {
-			t.Errorf("msg timestamp = %v, want zero", msgs[0].Timestamp)
-		}
-
-		gotLog := buf.String()
-		if !strings.Contains(gotLog, "unparseable timestamp") {
-			t.Errorf("expected warning in log, got: %q", gotLog)
-		}
-		if !strings.Contains(gotLog, "garbage") {
-			t.Errorf("expected log to contain 'garbage', got: %q", gotLog)
-		}
+		assertZeroTimestamp(t, msgs[0].Timestamp, "msg timestamp")
+		assertLogContains(t, buf,
+			"unparseable timestamp", "garbage",
+		)
 	})
 
 	t.Run("very long invalid timestamp is truncated in log", func(t *testing.T) {
 		longInvalid := strings.Repeat("x", 200)
 		content := codexMsgJSON("user", "hello", longInvalid) + "\n"
 		path := createTestFile(t, "codex-ts-long-invalid.jsonl", content)
-
-		var buf bytes.Buffer
-		old := log.Writer()
-		log.SetOutput(&buf)
-		defer log.SetOutput(old)
+		buf := captureLog(t)
 
 		_, _, err := ParseCodexSession(
 			path, "local", false,
 		)
 		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
+			t.Fatalf("ParseCodexSession: %v", err)
 		}
 
-		gotLog := buf.String()
-		if !strings.Contains(gotLog, "unparseable timestamp") {
-			t.Errorf("expected warning in log, got: %q", gotLog)
-		}
-		if !strings.Contains(gotLog, "...") {
-			t.Errorf("expected log to contain truncation '...', got: %q", gotLog)
-		}
-		if strings.Contains(gotLog, longInvalid) {
-			t.Errorf("log should not contain full 200-char string")
-		}
+		assertLogContains(t, buf,
+			"unparseable timestamp", "...",
+		)
+		assertLogNotContains(t, buf, longInvalid)
 	})
 }
 
