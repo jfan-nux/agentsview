@@ -81,8 +81,8 @@ func TestSyncEngineIntegration(t *testing.T) {
 	env := setupTestEnv(t)
 
 	content := NewSessionBuilder().
-		AddClaudeUser("2024-01-01T10:00:00Z", "Hello", "/Users/wesm/code/my-app").
-		AddClaudeAssistant("2024-01-01T10:00:05Z", "Hi there!").
+		AddClaudeUser(tsEarly, "Hello", "/Users/wesm/code/my-app").
+		AddClaudeAssistant(tsEarlyS5, "Hi there!").
 		String()
 
 	env.writeClaudeSession(
@@ -139,9 +139,9 @@ func TestSyncEngineCodex(t *testing.T) {
 	env := setupTestEnv(t)
 
 	content := NewSessionBuilder().
-		AddCodexMeta("2024-01-01T10:00:00Z", "test-uuid", "/home/user/code/api", "user").
-		AddCodexMessage("2024-01-01T10:00:01Z", "user", "Add tests").
-		AddCodexMessage("2024-01-01T10:00:05Z", "assistant", "Adding test coverage.").
+		AddCodexMeta(tsEarly, "test-uuid", "/home/user/code/api", "user").
+		AddCodexMessage(tsEarlyS1, "user", "Add tests").
+		AddCodexMessage(tsEarlyS5, "assistant", "Adding test coverage.").
 		String()
 
 	env.writeCodexSession(
@@ -168,7 +168,7 @@ func TestSyncEngineProgress(t *testing.T) {
 	env := setupTestEnv(t)
 
 	msg := NewSessionBuilder().
-		AddClaudeUser("2024-01-01T00:00:00Z", "msg").
+		AddClaudeUser(tsZero, "msg").
 		String()
 
 	for _, name := range []string{"a", "b", "c"} {
@@ -191,7 +191,7 @@ func TestSyncEngineHashSkip(t *testing.T) {
 	env := setupTestEnv(t)
 
 	content := NewSessionBuilder().
-		AddClaudeUser("2024-01-01T00:00:00Z", "msg1").
+		AddClaudeUser(tsZero, "msg1").
 		String()
 
 	path := env.writeClaudeSession(
@@ -218,7 +218,7 @@ func TestSyncEngineHashSkip(t *testing.T) {
 
 	// Overwrite with same-size but different content.
 	different := NewSessionBuilder().
-		AddClaudeUser("2024-01-01T00:00:00Z", "msg2").
+		AddClaudeUser(tsZero, "msg2").
 		String()
 
 	if len(different) != len(content) {
@@ -263,7 +263,7 @@ func TestSyncEngineFileAppend(t *testing.T) {
 	env := setupTestEnv(t)
 
 	initial := NewSessionBuilder().
-		AddClaudeUser("2024-01-01T00:00:00Z", "first").
+		AddClaudeUser(tsZero, "first").
 		String()
 
 	path := env.writeClaudeSession(
@@ -282,7 +282,7 @@ func TestSyncEngineFileAppend(t *testing.T) {
 
 	// Append a new message (changes size and hash)
 	appended := initial + NewSessionBuilder().
-		AddClaudeAssistant("2024-01-01T00:00:05Z", "reply").
+		AddClaudeAssistant(tsZeroS5, "reply").
 		String()
 
 	os.WriteFile(path, []byte(appended), 0o644)
@@ -302,8 +302,8 @@ func TestSyncSingleSessionHash(t *testing.T) {
 	env := setupTestEnv(t)
 
 	content := NewSessionBuilder().
-		AddClaudeUser("2024-01-01T00:00:00Z", "hello").
-		AddClaudeAssistant("2024-01-01T00:00:05Z", "hi").
+		AddClaudeUser(tsZero, "hello").
+		AddClaudeAssistant(tsZeroS5, "hi").
 		String()
 
 	env.writeClaudeSession(
@@ -351,9 +351,9 @@ func TestSyncSingleSessionHashCodex(t *testing.T) {
 
 	uuid := "a1b2c3d4-1234-5678-9abc-def012345678"
 	content := NewSessionBuilder().
-		AddCodexMeta("2024-01-01T10:00:00Z", uuid, "/home/user/code/api", "user").
-		AddCodexMessage("2024-01-01T10:00:01Z", "user", "Add tests").
-		AddCodexMessage("2024-01-01T10:00:05Z", "assistant", "Adding test coverage.").
+		AddCodexMeta(tsEarly, uuid, "/home/user/code/api", "user").
+		AddCodexMessage(tsEarlyS1, "user", "Add tests").
+		AddCodexMessage(tsEarlyS5, "assistant", "Adding test coverage.").
 		String()
 
 	env.writeCodexSession(
@@ -415,8 +415,8 @@ func TestSyncEngineTombstoneClearOnMtimeChange(t *testing.T) {
 
 	// Replace with valid content
 	valid := NewSessionBuilder().
-		AddClaudeUser("2024-01-01T00:00:00Z", "hello").
-		AddClaudeAssistant("2024-01-01T00:00:05Z", "hi").
+		AddClaudeUser(tsZero, "hello").
+		AddClaudeAssistant(tsZeroS5, "hi").
 		String()
 
 	os.WriteFile(path, []byte(valid), 0o644)
@@ -437,7 +437,7 @@ func TestSyncSingleSessionProjectFallback(t *testing.T) {
 
 	// 1. Create a session in a directory "default-proj"
 	content := NewSessionBuilder().
-		AddClaudeUser("2024-01-01T00:00:00Z", "hello").
+		AddClaudeUser(tsZero, "hello").
 		String()
 
 	env.writeClaudeSession(
@@ -575,7 +575,7 @@ func TestSyncEngineNoTrailingNewline(t *testing.T) {
 	env := setupTestEnv(t)
 
 	content := NewSessionBuilder().
-		AddClaudeUser("2024-01-01T10:00:00Z", "Hello").
+		AddClaudeUser(tsEarly, "Hello").
 		StringNoTrailingNewline()
 
 	env.writeClaudeSession(
@@ -597,8 +597,8 @@ func TestSyncEngineCodexNoTrailingNewline(t *testing.T) {
 
 	uuid := "b2c3d4e5-2345-6789-0abc-def123456789"
 	content := NewSessionBuilder().
-		AddCodexMeta("2024-01-01T10:00:00Z", uuid, "/home/user/code/api", "user").
-		AddCodexMessage("2024-01-01T10:00:01Z", "user", "Hello").
+		AddCodexMeta(tsEarly, uuid, "/home/user/code/api", "user").
+		AddCodexMessage(tsEarlyS1, "user", "Hello").
 		StringNoTrailingNewline()
 
 	env.writeCodexSession(

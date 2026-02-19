@@ -24,6 +24,16 @@ import (
 	"github.com/wesm/agentsview/internal/sync"
 )
 
+// Timestamp constants for test data.
+const (
+	tsZero    = "2024-01-01T00:00:00Z"
+	tsZeroS5  = "2024-01-01T00:00:05Z"
+	tsEarly   = "2024-01-01T10:00:00Z"
+	tsEarlyS5 = "2024-01-01T10:00:05Z"
+	tsSeed    = "2025-01-15T10:00:00Z"
+	tsSeedEnd = "2025-01-15T11:00:00Z"
+)
+
 // --- Test helpers ---
 
 // testEnv sets up a server with a temporary database.
@@ -96,8 +106,8 @@ func (te *testEnv) seedSession(
 	dbtest.SeedSession(t, te.db, id, project, func(s *db.Session) {
 		s.Machine = "test"
 		s.MessageCount = msgCount
-		s.StartedAt = dbtest.Ptr("2025-01-15T10:00:00Z")
-		s.EndedAt = dbtest.Ptr("2025-01-15T11:00:00Z")
+		s.StartedAt = dbtest.Ptr(tsSeed)
+		s.EndedAt = dbtest.Ptr(tsSeedEnd)
 		s.FirstMessage = dbtest.Ptr("Hello world")
 	})
 }
@@ -117,7 +127,7 @@ func (te *testEnv) seedMessages(
 			Ordinal:       i,
 			Role:          role,
 			Content:       "Message " + string(rune('A'+i%26)),
-			Timestamp:     "2025-01-15T10:00:00Z",
+			Timestamp:     tsSeed,
 			ContentLength: 10,
 		}
 		for _, mod := range mods {
@@ -929,8 +939,8 @@ func TestUploadSession(t *testing.T) {
 	te := setup(t)
 
 	content := buildJSONL(t,
-		LogEntry{Type: "user", Timestamp: "2024-01-01T10:00:00Z", Message: map[string]string{"content": "Hello upload"}},
-		LogEntry{Type: "assistant", Timestamp: "2024-01-01T10:00:05Z", Message: map[string]any{"content": []map[string]string{{"type": "text", "text": "Hi!"}}}},
+		LogEntry{Type: "user", Timestamp: tsEarly, Message: map[string]string{"content": "Hello upload"}},
+		LogEntry{Type: "assistant", Timestamp: tsEarlyS5, Message: map[string]any{"content": []map[string]string{{"type": "text", "text": "Hi!"}}}},
 	)
 
 	w := te.upload(t, "upload-test.jsonl", content,
@@ -1032,7 +1042,7 @@ func TestTriggerSync_NonStreaming(t *testing.T) {
 
 	// Seed a session file so we expect at least one session in the sync result.
 	content := buildJSONL(t,
-		LogEntry{Type: "user", Timestamp: "2024-01-01T00:00:00Z", Message: map[string]string{"content": "msg"}},
+		LogEntry{Type: "user", Timestamp: tsZero, Message: map[string]string{"content": "msg"}},
 	)
 	te.writeProjectFile(t, "test-proj", "sync-test.jsonl", content)
 
@@ -1077,7 +1087,7 @@ func TestTriggerSync_SSE(t *testing.T) {
 	te := setup(t)
 
 	content := buildJSONL(t,
-		LogEntry{Type: "user", Timestamp: "2024-01-01T00:00:00Z", Message: map[string]string{"content": "msg"}},
+		LogEntry{Type: "user", Timestamp: tsZero, Message: map[string]string{"content": "msg"}},
 	)
 	te.writeProjectFile(t, "test-proj", "sse-test.jsonl", content)
 
@@ -1093,7 +1103,7 @@ func TestWatchSession_Events(t *testing.T) {
 	te := setup(t)
 
 	content := buildJSONL(t,
-		LogEntry{Type: "user", Timestamp: "2024-01-01T00:00:00Z", Message: map[string]string{"content": "initial"}},
+		LogEntry{Type: "user", Timestamp: tsZero, Message: map[string]string{"content": "initial"}},
 	)
 	sessionPath := te.writeProjectFile(t, "watch-proj", "watch-sess.jsonl", content)
 
@@ -1122,7 +1132,7 @@ func TestWatchSession_Events(t *testing.T) {
 	time.Sleep(200 * time.Millisecond)
 
 	updated := content + buildJSONL(t,
-		LogEntry{Type: "assistant", Timestamp: "2024-01-01T00:00:05Z", Message: map[string]any{"content": []map[string]string{{"type": "text", "text": "response"}}}},
+		LogEntry{Type: "assistant", Timestamp: tsZeroS5, Message: map[string]any{"content": []map[string]string{{"type": "text", "text": "response"}}}},
 	)
 	if err := os.WriteFile(
 		sessionPath, []byte(updated), 0o644,
@@ -1139,7 +1149,7 @@ func TestWatchSession_FileDisappearAndResolve(t *testing.T) {
 	te := setup(t)
 
 	content := buildJSONL(t,
-		LogEntry{Type: "user", Timestamp: "2024-01-01T00:00:00Z", Message: map[string]string{"content": "initial"}},
+		LogEntry{Type: "user", Timestamp: tsZero, Message: map[string]string{"content": "initial"}},
 	)
 	sessionPath := te.writeProjectFile(t, "vanish-proj", "vanish-sess.jsonl", content)
 
@@ -1180,7 +1190,7 @@ func TestWatchSession_FileDisappearAndResolve(t *testing.T) {
 	// Recreate the file with updated content at a NEW location
 	// so we verify that FindSourceFile actually re-scans.
 	updated := content + buildJSONL(t,
-		LogEntry{Type: "assistant", Timestamp: "2024-01-01T00:00:05Z", Message: map[string]any{"content": []map[string]string{{"type": "text", "text": "recovered"}}}},
+		LogEntry{Type: "assistant", Timestamp: tsZeroS5, Message: map[string]any{"content": []map[string]string{{"type": "text", "text": "recovered"}}}},
 	)
 	te.writeProjectFile(t, "moved-proj", "vanish-sess.jsonl", updated)
 
@@ -1209,7 +1219,7 @@ func TestTriggerSync_SSEEvents(t *testing.T) {
 
 	for _, name := range []string{"a", "b"} {
 		content := buildJSONL(t,
-			LogEntry{Type: "user", Timestamp: "2024-01-01T00:00:00Z", Message: map[string]string{"content": fmt.Sprintf("msg %s", name)}},
+			LogEntry{Type: "user", Timestamp: tsZero, Message: map[string]string{"content": fmt.Sprintf("msg %s", name)}},
 		)
 		te.writeProjectFile(t, "sse-proj", name+".jsonl", content)
 	}

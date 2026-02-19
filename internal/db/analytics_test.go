@@ -13,7 +13,7 @@ func seedAnalyticsData(t *testing.T, d *DB) {
 	// Project A: 3 sessions across 2 days, mixed agents
 	insertSession(t, d, "a1", "project-alpha", func(s *Session) {
 		s.StartedAt = Ptr("2024-06-01T09:00:00Z")
-		s.EndedAt = Ptr("2024-06-01T10:00:00Z")
+		s.EndedAt = Ptr(tsMidYear)
 		s.MessageCount = 10
 		s.Agent = "claude"
 	})
@@ -64,7 +64,7 @@ func seedAnalyticsData(t *testing.T, d *DB) {
 				Role:          role,
 				Content:       fmt.Sprintf("msg %d", i),
 				ContentLength: 5,
-				Timestamp:     "2024-06-01T10:00:00Z",
+				Timestamp:     tsMidYear,
 			}
 		}
 		insertMessages(t, d, msgs...)
@@ -464,7 +464,7 @@ func TestMostActiveTieBreak(t *testing.T) {
 		s.Agent = "claude"
 	})
 	insertSession(t, d, "t2", "alpha", func(s *Session) {
-		s.StartedAt = Ptr("2024-06-01T10:00:00Z")
+		s.StartedAt = Ptr(tsMidYear)
 		s.MessageCount = 20
 		s.Agent = "claude"
 	})

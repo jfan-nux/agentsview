@@ -71,6 +71,13 @@ func requireErrContains(
 const (
 	defaultMachine = "local"
 	defaultAgent   = "claude"
+
+	// Timestamp constants for test data.
+	tsZero    = "2024-01-01T00:00:00Z"
+	tsZeroS1  = "2024-01-01T00:00:01Z"
+	tsZeroS2  = "2024-01-01T00:00:02Z"
+	tsHour1   = "2024-01-01T01:00:00Z"
+	tsMidYear = "2024-06-01T10:00:00Z"
 )
 
 func testDB(t *testing.T) *DB {
@@ -127,7 +134,7 @@ func userMsg(sid string, ordinal int, content string) Message {
 		Role:          "user",
 		Content:       content,
 		ContentLength: len(content),
-		Timestamp:     "2024-01-01T00:00:00Z",
+		Timestamp:     tsZero,
 	}
 }
 
@@ -139,7 +146,7 @@ func asstMsg(sid string, ordinal int, content string) Message {
 		Role:          "assistant",
 		Content:       content,
 		ContentLength: len(content),
-		Timestamp:     "2024-01-01T00:00:00Z",
+		Timestamp:     tsZero,
 	}
 }
 
@@ -237,8 +244,8 @@ func TestSessionCRUD(t *testing.T) {
 		Machine:      defaultMachine,
 		Agent:        defaultAgent,
 		FirstMessage: Ptr("Hello world"),
-		StartedAt:    Ptr("2024-01-01T00:00:00Z"),
-		EndedAt:      Ptr("2024-01-01T01:00:00Z"),
+		StartedAt:    Ptr(tsZero),
+		EndedAt:      Ptr(tsHour1),
 		MessageCount: 5,
 	}
 
@@ -328,8 +335,8 @@ func TestMessageCRUD(t *testing.T) {
 	})
 
 	m1 := userMsg("s1", 0, "Hello")
-	m2 := asstMsgAt("s1", 1, "Hi there", "2024-01-01T00:00:01Z")
-	m3 := userMsgAt("s1", 2, "Thanks", "2024-01-01T00:00:02Z")
+	m2 := asstMsgAt("s1", 1, "Hi there", tsZeroS1)
+	m3 := userMsgAt("s1", 2, "Thanks", tsZeroS2)
 	m4 := userMsgAt("s1", 3, "Empty TS", "")
 
 	insertMessages(t, d, m1, m2, m3, m4)
@@ -434,7 +441,7 @@ func TestSearch(t *testing.T) {
 
 	m1 := userMsg("s1", 0, "Fix the authentication bug")
 	m2 := asstMsgAt("s1", 1, "Looking at the auth module",
-		"2024-01-01T00:00:01Z")
+		tsZeroS1)
 
 	insertMessages(t, d, m1, m2)
 
@@ -908,8 +915,8 @@ func TestGetSessionFull(t *testing.T) {
 	t.Run("AllMetadata", func(t *testing.T) {
 		insertSession(t, d, "full-1", "proj", func(s *Session) {
 			s.FirstMessage = Ptr("hello")
-			s.StartedAt = Ptr("2024-01-01T00:00:00Z")
-			s.EndedAt = Ptr("2024-01-01T01:00:00Z")
+			s.StartedAt = Ptr(tsZero)
+			s.EndedAt = Ptr(tsHour1)
 			s.MessageCount = 5
 			s.FilePath = Ptr("/tmp/session.jsonl")
 			s.FileSize = Ptr(int64(2048))
@@ -948,11 +955,11 @@ func TestGetSessionFull(t *testing.T) {
 		if got.FirstMessage == nil || *got.FirstMessage != "hello" {
 			t.Errorf("FirstMessage = %v, want %q", got.FirstMessage, "hello")
 		}
-		if got.StartedAt == nil || *got.StartedAt != "2024-01-01T00:00:00Z" {
-			t.Errorf("StartedAt = %v, want %q", got.StartedAt, "2024-01-01T00:00:00Z")
+		if got.StartedAt == nil || *got.StartedAt != tsZero {
+			t.Errorf("StartedAt = %v, want %q", got.StartedAt, tsZero)
 		}
-		if got.EndedAt == nil || *got.EndedAt != "2024-01-01T01:00:00Z" {
-			t.Errorf("EndedAt = %v, want %q", got.EndedAt, "2024-01-01T01:00:00Z")
+		if got.EndedAt == nil || *got.EndedAt != tsHour1 {
+			t.Errorf("EndedAt = %v, want %q", got.EndedAt, tsHour1)
 		}
 	})
 
@@ -1004,12 +1011,12 @@ func TestGetSessionFull(t *testing.T) {
 
 func TestCursorEncodeDecode(t *testing.T) {
 	d := testDB(t)
-	encoded := d.EncodeCursor("2024-01-01T00:00:00Z", "session-1")
+	encoded := d.EncodeCursor(tsZero, "session-1")
 	cur, err := d.DecodeCursor(encoded)
 	if err != nil {
 		t.Fatalf("DecodeCursor: %v", err)
 	}
-	if cur.EndedAt != "2024-01-01T00:00:00Z" {
+	if cur.EndedAt != tsZero {
 		t.Errorf("EndedAt = %q", cur.EndedAt)
 	}
 	if cur.ID != "session-1" {
@@ -1017,7 +1024,7 @@ func TestCursorEncodeDecode(t *testing.T) {
 	}
 
 	encodedWithTotal := d.EncodeCursor(
-		"2024-01-01T00:00:00Z",
+		tsZero,
 		"session-1",
 		123,
 	)
@@ -1033,7 +1040,7 @@ func TestCursorEncodeDecode(t *testing.T) {
 func TestCursorTampering(t *testing.T) {
 	d := testDB(t)
 	// 1. Create a valid signed cursor
-	original := d.EncodeCursor("2024-01-01T00:00:00Z", "s1", 100)
+	original := d.EncodeCursor(tsZero, "s1", 100)
 
 	parts := strings.Split(original, ".")
 	if len(parts) != 2 {
@@ -1076,7 +1083,7 @@ func TestLegacyCursor(t *testing.T) {
 	d := testDB(t)
 	// Create a legacy cursor (base64 json only, no signature)
 	c := SessionCursor{
-		EndedAt: "2024-01-01T00:00:00Z",
+		EndedAt: tsZero,
 		ID:      "s1",
 		Total:   100, // Should be ignored
 	}
@@ -1123,13 +1130,13 @@ func TestCursorSecretConcurrency(t *testing.T) {
 					d.SetCursorSecret(secret)
 				case 1:
 					d.EncodeCursor(
-						"2024-01-01T00:00:00Z",
+						tsZero,
 						fmt.Sprintf("s-%d-%d", id, j),
 						42,
 					)
 				case 2:
 					encoded := d.EncodeCursor(
-						"2024-01-01T00:00:00Z", "s1",
+						tsZero, "s1",
 					)
 					// Decode may fail if secret rotated
 					// between encode and decode; that's OK.
@@ -1155,7 +1162,7 @@ func TestSetCursorSecretDefensiveCopy(t *testing.T) {
 	secret := []byte("my-secret-key-for-testing-copy!!")
 	d.SetCursorSecret(secret)
 
-	encoded := d.EncodeCursor("2024-01-01T00:00:00Z", "s1")
+	encoded := d.EncodeCursor(tsZero, "s1")
 
 	// Mutate the original slice — should not affect the DB.
 	for i := range secret {

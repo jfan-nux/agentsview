@@ -10,6 +10,18 @@ import (
 	"github.com/wesm/agentsview/internal/testjsonl"
 )
 
+// Timestamp constants for test data.
+const (
+	tsZero    = "2024-01-01T00:00:00Z"
+	tsZeroS1  = "2024-01-01T00:00:01Z"
+	tsZeroS2  = "2024-01-01T00:00:02Z"
+	tsEarly   = "2024-01-01T10:00:00Z"
+	tsEarlyS1 = "2024-01-01T10:00:01Z"
+	tsEarlyS5 = "2024-01-01T10:00:05Z"
+	tsLate    = "2024-01-01T10:01:00Z"
+	tsLateS5  = "2024-01-01T10:01:05Z"
+)
+
 // --- JSON Builders (delegate to shared testjsonl package) ---
 
 func claudeUserJSON(content, timestamp string, cwd ...string) string {

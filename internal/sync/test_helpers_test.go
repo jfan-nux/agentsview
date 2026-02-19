@@ -10,6 +10,15 @@ import (
 	"github.com/wesm/agentsview/internal/testjsonl"
 )
 
+// Timestamp constants for test data.
+const (
+	tsZero    = "2024-01-01T00:00:00Z"
+	tsZeroS5  = "2024-01-01T00:00:05Z"
+	tsEarly   = "2024-01-01T10:00:00Z"
+	tsEarlyS1 = "2024-01-01T10:00:01Z"
+	tsEarlyS5 = "2024-01-01T10:00:05Z"
+)
+
 // NewSessionBuilder returns a shared JSONL session builder.
 func NewSessionBuilder() *testjsonl.SessionBuilder {
 	return testjsonl.NewSessionBuilder()
