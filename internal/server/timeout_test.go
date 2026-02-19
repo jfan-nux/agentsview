@@ -114,7 +114,7 @@ func TestServerTimeouts(t *testing.T) {
 	// This Read will block until data arrives or context times out.
 	buf := make([]byte, 1024)
 	n, err := resp.Body.Read(buf)
-	
+
 	// Check if update writer failed
 	if writeErr := <-errCh; writeErr != nil {
 		t.Fatalf("update writer failed: %v", writeErr)

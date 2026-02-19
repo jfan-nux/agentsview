@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/wesm/agentsview/internal/db"
+	"github.com/wesm/agentsview/internal/dbtest"
 )
 
 // seedAnalyticsEnv populates the test env with sessions and
@@ -27,21 +28,17 @@ func seedAnalyticsEnv(t *testing.T, te *testEnv) {
 	}
 
 	for _, s := range sessions {
-		ended := s.started // close enough for tests
-		first := "Hello"
-		sess := db.Session{
-			ID:           s.id,
-			Project:      s.project,
-			Machine:      "test",
-			Agent:        s.agent,
-			MessageCount: s.msgs,
-			StartedAt:    &s.started,
-			EndedAt:      &ended,
-			FirstMessage: &first,
-		}
-		if err := te.db.UpsertSession(sess); err != nil {
-			t.Fatalf("seeding session %s: %v", s.id, err)
-		}
+		started := s.started
+		dbtest.SeedSession(t, te.db, s.id, s.project,
+			func(sess *db.Session) {
+				sess.Machine = "test"
+				sess.Agent = s.agent
+				sess.MessageCount = s.msgs
+				sess.StartedAt = &started
+				sess.EndedAt = &started
+				sess.FirstMessage = dbtest.Ptr("Hello")
+			},
+		)
 
 		msgs := make([]db.Message, s.msgs)
 		for i := range s.msgs {

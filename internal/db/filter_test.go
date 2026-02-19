@@ -16,7 +16,7 @@ func TestPruneFilterZeroValue(t *testing.T) {
 
 	// Setup DB to see what it finds
 	d := testDB(t)
-	
+
 	// Insert a session with 0 messages
 	insertSession(t, d, "s1", "p", func(s *Session) {
 		s.MessageCount = 0
@@ -43,20 +43,20 @@ func TestSessionFilterDateFields(t *testing.T) {
 
 	// Session on June 1
 	insertSession(t, d, "s1", "proj", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-01T10:00:00Z")
-		s.EndedAt = strPtr("2024-06-01T11:00:00Z")
+		s.StartedAt = Ptr("2024-06-01T10:00:00Z")
+		s.EndedAt = Ptr("2024-06-01T11:00:00Z")
 		s.MessageCount = 5
 	})
 	// Session on June 2
 	insertSession(t, d, "s2", "proj", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-02T10:00:00Z")
-		s.EndedAt = strPtr("2024-06-02T11:00:00Z")
+		s.StartedAt = Ptr("2024-06-02T10:00:00Z")
+		s.EndedAt = Ptr("2024-06-02T11:00:00Z")
 		s.MessageCount = 15
 	})
 	// Session on June 3
 	insertSession(t, d, "s3", "proj", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-03T10:00:00Z")
-		s.EndedAt = strPtr("2024-06-03T11:00:00Z")
+		s.StartedAt = Ptr("2024-06-03T10:00:00Z")
+		s.EndedAt = Ptr("2024-06-03T11:00:00Z")
 		s.MessageCount = 25
 	})
 

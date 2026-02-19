@@ -12,34 +12,34 @@ func seedAnalyticsData(t *testing.T, d *DB) {
 
 	// Project A: 3 sessions across 2 days, mixed agents
 	insertSession(t, d, "a1", "project-alpha", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-01T09:00:00Z")
-		s.EndedAt = strPtr("2024-06-01T10:00:00Z")
+		s.StartedAt = Ptr("2024-06-01T09:00:00Z")
+		s.EndedAt = Ptr("2024-06-01T10:00:00Z")
 		s.MessageCount = 10
 		s.Agent = "claude"
 	})
 	insertSession(t, d, "a2", "project-alpha", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-01T14:00:00Z")
-		s.EndedAt = strPtr("2024-06-01T15:00:00Z")
+		s.StartedAt = Ptr("2024-06-01T14:00:00Z")
+		s.EndedAt = Ptr("2024-06-01T15:00:00Z")
 		s.MessageCount = 20
 		s.Agent = "codex"
 	})
 	insertSession(t, d, "a3", "project-alpha", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-03T09:00:00Z")
-		s.EndedAt = strPtr("2024-06-03T10:00:00Z")
+		s.StartedAt = Ptr("2024-06-03T09:00:00Z")
+		s.EndedAt = Ptr("2024-06-03T10:00:00Z")
 		s.MessageCount = 5
 		s.Agent = "claude"
 	})
 
 	// Project B: 2 sessions on 1 day
 	insertSession(t, d, "b1", "project-beta", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-02T10:00:00Z")
-		s.EndedAt = strPtr("2024-06-02T11:00:00Z")
+		s.StartedAt = Ptr("2024-06-02T10:00:00Z")
+		s.EndedAt = Ptr("2024-06-02T11:00:00Z")
 		s.MessageCount = 30
 		s.Agent = "claude"
 	})
 	insertSession(t, d, "b2", "project-beta", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-02T15:00:00Z")
-		s.EndedAt = strPtr("2024-06-02T16:00:00Z")
+		s.StartedAt = Ptr("2024-06-02T15:00:00Z")
+		s.EndedAt = Ptr("2024-06-02T16:00:00Z")
 		s.MessageCount = 15
 		s.Agent = "claude"
 	})
@@ -480,12 +480,12 @@ func TestMostActiveTieBreak(t *testing.T) {
 
 	// Two projects with equal message counts
 	insertSession(t, d, "t1", "zebra", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-01T09:00:00Z")
+		s.StartedAt = Ptr("2024-06-01T09:00:00Z")
 		s.MessageCount = 20
 		s.Agent = "claude"
 	})
 	insertSession(t, d, "t2", "alpha", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-01T10:00:00Z")
+		s.StartedAt = Ptr("2024-06-01T10:00:00Z")
 		s.MessageCount = 20
 		s.Agent = "claude"
 	})
@@ -548,7 +548,7 @@ func TestAnalyticsTimezone(t *testing.T) {
 
 	// Session at 2024-06-01T23:00:00Z = 2024-06-02 in UTC+5
 	insertSession(t, d, "tz1", "tz-project", func(s *Session) {
-		s.StartedAt = strPtr("2024-06-01T23:00:00Z")
+		s.StartedAt = Ptr("2024-06-01T23:00:00Z")
 		s.MessageCount = 10
 		s.Agent = "claude"
 	})

@@ -103,7 +103,7 @@ func TestWatcherCallsOnChange(t *testing.T) {
 	if !slices.Contains(gotPaths, path) {
 		t.Fatalf("onChange did not contain expected path %s, got %v", path, gotPaths)
 	}
-	
+
 	// t.Cleanup in startTestWatcher handles w.Stop()
 }
 
@@ -229,13 +229,13 @@ func TestWatcherStopIdempotency(t *testing.T) {
 			w2.Stop()
 		})
 	}
-	
+
 	done := make(chan struct{})
 	go func() {
 		wg.Wait()
 		close(done)
 	}()
-	
+
 	waitWithTimeout(t, done, 5*time.Second, "concurrent Stop() timed out")
 }
 

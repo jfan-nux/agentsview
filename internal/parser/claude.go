@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	initialScanBufSize = 64 * 1024       // 64KB
+	initialScanBufSize = 64 * 1024        // 64KB
 	maxScanTokenSize   = 20 * 1024 * 1024 // 20MB
 )
 
@@ -171,5 +171,3 @@ func truncate(s string, maxLen int) string {
 	}
 	return s[:maxLen] + "..."
 }
-
-

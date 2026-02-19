@@ -20,12 +20,12 @@ func TestContentTypeWrapper(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name           string
-		handler        http.HandlerFunc
-		triggerStatus  int
-		wantStatus     int
+		name            string
+		handler         http.HandlerFunc
+		triggerStatus   int
+		wantStatus      int
 		wantContentType string
-		wantBody       string
+		wantBody        string
 	}{
 		{
 			name: "SetsContentTypeOnTriggerStatusMissingHeader",

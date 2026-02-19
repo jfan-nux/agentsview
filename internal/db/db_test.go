@@ -31,14 +31,8 @@ func testDB(t *testing.T) *DB {
 	return d
 }
 
-// strPtr returns a pointer to s.
-func strPtr(s string) *string { return &s }
-
-// int64Ptr returns a pointer to n.
-func int64Ptr(n int64) *int64 { return &n }
-
-// intPtr returns a pointer to n.
-func intPtr(n int) *int { return &n }
+// Ptr returns a pointer to v.
+func Ptr[T any](v T) *T { return &v }
 
 // insertSession creates and upserts a session with sensible
 // defaults. Override any field via the opts functions.
@@ -142,9 +136,9 @@ func TestSessionCRUD(t *testing.T) {
 		Project:      "my_project",
 		Machine:      defaultMachine,
 		Agent:        defaultAgent,
-		FirstMessage: strPtr("Hello world"),
-		StartedAt:    strPtr("2024-01-01T00:00:00Z"),
-		EndedAt:      strPtr("2024-01-01T01:00:00Z"),
+		FirstMessage: Ptr("Hello world"),
+		StartedAt:    Ptr("2024-01-01T00:00:00Z"),
+		EndedAt:      Ptr("2024-01-01T01:00:00Z"),
 		MessageCount: 5,
 	}
 
@@ -183,7 +177,7 @@ func TestListSessions(t *testing.T) {
 		insertSession(t, d,
 			fmt.Sprintf("session-%c", 'a'+i), "proj",
 			func(s *Session) {
-				s.EndedAt = strPtr(ea)
+				s.EndedAt = Ptr(ea)
 				s.MessageCount = i + 1
 			},
 		)
@@ -227,7 +221,7 @@ func TestListSessionsProjectFilter(t *testing.T) {
 		ea := fmt.Sprintf("2024-01-01T00:00:0%dZ", i)
 		insertSession(t, d,
 			fmt.Sprintf("%s-%d", proj, i), proj,
-			func(s *Session) { s.EndedAt = strPtr(ea) },
+			func(s *Session) { s.EndedAt = Ptr(ea) },
 		)
 	}
 
@@ -518,23 +512,23 @@ func TestGetProjects(t *testing.T) {
 func setupPruneData(t *testing.T, d *DB) {
 	t.Helper()
 	insertSession(t, d, "s1", "spicytakes", func(s *Session) {
-		s.FirstMessage = strPtr("You are a code reviewer")
-		s.EndedAt = strPtr("2024-01-15T00:00:00Z")
+		s.FirstMessage = Ptr("You are a code reviewer")
+		s.EndedAt = Ptr("2024-01-15T00:00:00Z")
 		s.MessageCount = 2
 	})
 	insertSession(t, d, "s2", "spicytakes", func(s *Session) {
-		s.FirstMessage = strPtr("Analyze this blog post")
-		s.EndedAt = strPtr("2024-03-01T00:00:00Z")
+		s.FirstMessage = Ptr("Analyze this blog post")
+		s.EndedAt = Ptr("2024-03-01T00:00:00Z")
 		s.MessageCount = 2
 	})
 	insertSession(t, d, "s3", "roborev", func(s *Session) {
-		s.FirstMessage = strPtr("You are a code reviewer")
-		s.EndedAt = strPtr("2024-03-01T00:00:00Z")
+		s.FirstMessage = Ptr("You are a code reviewer")
+		s.EndedAt = Ptr("2024-03-01T00:00:00Z")
 		s.MessageCount = 2
 	})
 	insertSession(t, d, "s4", "spicytakes", func(s *Session) {
-		s.FirstMessage = strPtr("Help me refactor")
-		s.EndedAt = strPtr("2024-06-01T00:00:00Z")
+		s.FirstMessage = Ptr("Help me refactor")
+		s.EndedAt = Ptr("2024-06-01T00:00:00Z")
 		s.MessageCount = 10
 	})
 }
@@ -555,7 +549,7 @@ func TestFindPruneCandidates(t *testing.T) {
 		},
 		{
 			name:   "MaxMessages",
-			filter: PruneFilter{MaxMessages: intPtr(2)},
+			filter: PruneFilter{MaxMessages: Ptr(2)},
 			want:   3,
 		},
 		{
@@ -575,7 +569,7 @@ func TestFindPruneCandidates(t *testing.T) {
 		{
 			name: "CombinedProjectAndMaxMessages",
 			filter: PruneFilter{
-				Project: "spicytakes", MaxMessages: intPtr(2),
+				Project: "spicytakes", MaxMessages: Ptr(2),
 			},
 			want: 2,
 		},
@@ -583,7 +577,7 @@ func TestFindPruneCandidates(t *testing.T) {
 			name: "AllFiltersNoMatch",
 			filter: PruneFilter{
 				Project:      "spicytakes",
-				MaxMessages:  intPtr(2),
+				MaxMessages:  Ptr(2),
 				Before:       "2024-02-01",
 				FirstMessage: "Analyze",
 			},
@@ -624,8 +618,8 @@ func TestFindPruneCandidates(t *testing.T) {
 	t.Run("ReturnsFileMetadata", func(t *testing.T) {
 		fp := "/path/to/file.jsonl"
 		insertSession(t, d, "s5", "test", func(s *Session) {
-			s.FilePath = strPtr(fp)
-			s.FileSize = int64Ptr(4096)
+			s.FilePath = Ptr(fp)
+			s.FileSize = Ptr(int64(4096))
 		})
 		got, err := d.FindPruneCandidates(PruneFilter{
 			Project: "test",
@@ -658,14 +652,14 @@ func TestFindPruneCandidatesLikeEscaping(t *testing.T) {
 	d := testDB(t)
 
 	insertSession(t, d, "e1", "my%project", func(s *Session) {
-		s.FirstMessage = strPtr("100% complete")
+		s.FirstMessage = Ptr("100% complete")
 	})
 	insertSession(t, d, "e2", "my_project", func(s *Session) {
-		s.FirstMessage = strPtr("100% complete")
+		s.FirstMessage = Ptr("100% complete")
 	})
 	insertSession(t, d, "e3", "myXproject")
 	insertSession(t, d, "e4", `my\project`, func(s *Session) {
-		s.FirstMessage = strPtr(`path\to\file`)
+		s.FirstMessage = Ptr(`path\to\file`)
 	})
 
 	tests := []struct {
@@ -747,7 +741,7 @@ func TestFindPruneCandidatesMaxMessagesSentinel(t *testing.T) {
 	}{
 		{
 			name:   "ZeroMatchesOnlyZero",
-			filter: PruneFilter{MaxMessages: intPtr(0)},
+			filter: PruneFilter{MaxMessages: Ptr(0)},
 			want:   1,
 		},
 		{
@@ -772,7 +766,7 @@ func TestFindPruneCandidatesMaxMessagesSentinel(t *testing.T) {
 	}
 
 	// Additional check: MaxMessages=0 returns m1 specifically.
-	got, err := d.FindPruneCandidates(PruneFilter{MaxMessages: intPtr(0)})
+	got, err := d.FindPruneCandidates(PruneFilter{MaxMessages: Ptr(0)})
 	if err != nil {
 		t.Fatalf("FindPruneCandidates MaxMessages=0: %v", err)
 	}
@@ -842,9 +836,9 @@ func TestSessionFileInfo(t *testing.T) {
 	d := testDB(t)
 
 	insertSession(t, d, "s1", "p", func(s *Session) {
-		s.FileSize = int64Ptr(1024)
-		s.FileMtime = int64Ptr(1700000000)
-		s.FileHash = strPtr("abc123def456")
+		s.FileSize = Ptr(int64(1024))
+		s.FileMtime = Ptr(int64(1700000000))
+		s.FileHash = Ptr("abc123def456")
 	})
 
 	gotSize, gotHash, ok := d.GetSessionFileInfo("s1")
@@ -870,14 +864,14 @@ func TestGetSessionFull(t *testing.T) {
 
 	t.Run("AllMetadata", func(t *testing.T) {
 		insertSession(t, d, "full-1", "proj", func(s *Session) {
-			s.FirstMessage = strPtr("hello")
-			s.StartedAt = strPtr("2024-01-01T00:00:00Z")
-			s.EndedAt = strPtr("2024-01-01T01:00:00Z")
+			s.FirstMessage = Ptr("hello")
+			s.StartedAt = Ptr("2024-01-01T00:00:00Z")
+			s.EndedAt = Ptr("2024-01-01T01:00:00Z")
 			s.MessageCount = 5
-			s.FilePath = strPtr("/tmp/session.jsonl")
-			s.FileSize = int64Ptr(2048)
-			s.FileMtime = int64Ptr(1700000000)
-			s.FileHash = strPtr("abc123")
+			s.FilePath = Ptr("/tmp/session.jsonl")
+			s.FileSize = Ptr(int64(2048))
+			s.FileMtime = Ptr(int64(1700000000))
+			s.FileHash = Ptr("abc123")
 		})
 
 		got, err := d.GetSessionFull(ctx, "full-1")

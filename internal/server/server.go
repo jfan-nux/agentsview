@@ -136,10 +136,10 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) ListenAndServe() error {
 	addr := fmt.Sprintf("%s:%d", s.cfg.Host, s.cfg.Port)
 	srv := &http.Server{
-		Addr:         addr,
-		Handler:      s.Handler(),
-		ReadTimeout:  10 * time.Second,
-		IdleTimeout:  120 * time.Second,
+		Addr:        addr,
+		Handler:     s.Handler(),
+		ReadTimeout: 10 * time.Second,
+		IdleTimeout: 120 * time.Second,
 	}
 	log.Printf("Starting server at http://%s", addr)
 	return srv.ListenAndServe()

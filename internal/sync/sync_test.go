@@ -57,7 +57,7 @@ func assertDiscoveredFiles(t *testing.T, got []DiscoveredFile, wantFilenames []s
 			t.Errorf("missing expected file: %q", file)
 		}
 	}
-	
+
 	// Check for unexpected files
 	for file := range gotMap {
 		if !want[file] {
@@ -100,7 +100,7 @@ func TestDiscoverClaudeProjectsNonexistent(t *testing.T) {
 func TestDiscoverCodexSessions(t *testing.T) {
 	file1 := "rollout-123-abc-def-ghi-jkl-mno.jsonl"
 	file2 := "rollout-456-abc-def-ghi-jkl-mno.jsonl"
-	
+
 	dir := setupTestDir(t, []string{
 		filepath.Join("2024", "01", "15", file1),
 		filepath.Join("2024", "02", "01", file2),
@@ -160,7 +160,7 @@ func TestFindCodexSourceFile(t *testing.T) {
 	uuid := "abc12345-1234-5678-9abc-def012345678"
 	filename := "rollout-20240115-" + uuid + ".jsonl"
 	relPath := filepath.Join("2024", "01", "15", filename)
-	
+
 	dir := setupTestDir(t, []string{relPath})
 	expected := filepath.Join(dir, relPath)
 

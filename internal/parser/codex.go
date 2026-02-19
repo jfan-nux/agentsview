@@ -25,10 +25,10 @@ type codexSessionBuilder struct {
 	firstMessage string
 	startedAt    time.Time
 	endedAt      time.Time
-	sessionID   string
-	project     string
-	ordinal     int
-	includeExec bool
+	sessionID    string
+	project      string
+	ordinal      int
+	includeExec  bool
 }
 
 func newCodexSessionBuilder(

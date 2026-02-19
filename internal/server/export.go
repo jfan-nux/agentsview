@@ -279,11 +279,11 @@ type exportData struct {
 }
 
 type exportMessage struct {
-	RoleClass    string
-	ExtraClass   string
-	Role         string
-	Timestamp    string
-	ContentHTML  template.HTML
+	RoleClass   string
+	ExtraClass  string
+	Role        string
+	Timestamp   string
+	ContentHTML template.HTML
 }
 
 var exportTmpl = template.Must(

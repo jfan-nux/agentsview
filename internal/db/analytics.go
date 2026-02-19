@@ -117,16 +117,16 @@ type AgentSummary struct {
 
 // AnalyticsSummary is the response for the summary endpoint.
 type AnalyticsSummary struct {
-	TotalSessions    int                      `json:"total_sessions"`
-	TotalMessages    int                      `json:"total_messages"`
-	ActiveProjects   int                      `json:"active_projects"`
-	ActiveDays       int                      `json:"active_days"`
-	AvgMessages      float64                  `json:"avg_messages"`
-	MedianMessages   int                      `json:"median_messages"`
-	P90Messages      int                      `json:"p90_messages"`
-	MostActive       string                   `json:"most_active_project"`
-	Concentration    float64                  `json:"concentration"`
-	Agents           map[string]*AgentSummary `json:"agents"`
+	TotalSessions  int                      `json:"total_sessions"`
+	TotalMessages  int                      `json:"total_messages"`
+	ActiveProjects int                      `json:"active_projects"`
+	ActiveDays     int                      `json:"active_days"`
+	AvgMessages    float64                  `json:"avg_messages"`
+	MedianMessages int                      `json:"median_messages"`
+	P90Messages    int                      `json:"p90_messages"`
+	MostActive     string                   `json:"most_active_project"`
+	Concentration  float64                  `json:"concentration"`
+	Agents         map[string]*AgentSummary `json:"agents"`
 }
 
 // GetAnalyticsSummary returns aggregate statistics.
@@ -246,12 +246,12 @@ func (db *DB) GetAnalyticsSummary(
 
 // ActivityEntry is one time bucket in the activity timeline.
 type ActivityEntry struct {
-	Date              string            `json:"date"`
-	Sessions          int               `json:"sessions"`
-	Messages          int               `json:"messages"`
-	UserMessages      int               `json:"user_messages"`
-	AssistantMessages int               `json:"assistant_messages"`
-	ByAgent           map[string]int    `json:"by_agent"`
+	Date              string         `json:"date"`
+	Sessions          int            `json:"sessions"`
+	Messages          int            `json:"messages"`
+	UserMessages      int            `json:"user_messages"`
+	AssistantMessages int            `json:"assistant_messages"`
+	ByAgent           map[string]int `json:"by_agent"`
 }
 
 // ActivityResponse wraps the activity series.
@@ -393,7 +393,7 @@ type HeatmapLevels struct {
 
 // HeatmapResponse wraps the heatmap data.
 type HeatmapResponse struct {
-	Metric  string        `json:"metric"`
+	Metric  string         `json:"metric"`
 	Entries []HeatmapEntry `json:"entries"`
 	Levels  HeatmapLevels  `json:"levels"`
 }
@@ -533,15 +533,15 @@ func buildDateEntries(
 
 // ProjectAnalytics holds analytics for a single project.
 type ProjectAnalytics struct {
-	Name            string            `json:"name"`
-	Sessions        int               `json:"sessions"`
-	Messages        int               `json:"messages"`
-	FirstSession    string            `json:"first_session"`
-	LastSession     string            `json:"last_session"`
-	AvgMessages     float64           `json:"avg_messages"`
-	MedianMessages  int               `json:"median_messages"`
-	Agents          map[string]int    `json:"agents"`
-	DailyTrend      float64           `json:"daily_trend"`
+	Name           string         `json:"name"`
+	Sessions       int            `json:"sessions"`
+	Messages       int            `json:"messages"`
+	FirstSession   string         `json:"first_session"`
+	LastSession    string         `json:"last_session"`
+	AvgMessages    float64        `json:"avg_messages"`
+	MedianMessages int            `json:"median_messages"`
+	Agents         map[string]int `json:"agents"`
+	DailyTrend     float64        `json:"daily_trend"`
 }
 
 // ProjectsAnalyticsResponse wraps the projects list.

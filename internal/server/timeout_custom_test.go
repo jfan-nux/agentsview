@@ -13,7 +13,7 @@ import (
 
 func TestWithTimeout_Timeout(t *testing.T) {
 	t.Parallel()
-	
+
 	cfg := config.Config{
 		WriteTimeout: 10 * time.Millisecond,
 	}
@@ -58,7 +58,7 @@ func TestWithTimeout_Timeout(t *testing.T) {
 
 func TestWithTimeout_Success(t *testing.T) {
 	t.Parallel()
-	
+
 	cfg := config.Config{
 		WriteTimeout: 100 * time.Millisecond,
 	}

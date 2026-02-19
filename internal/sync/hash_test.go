@@ -10,9 +10,9 @@ import (
 
 func TestComputeHash(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		want    string
+		name  string
+		input string
+		want  string
 	}{
 		{
 			name:  "hello world",

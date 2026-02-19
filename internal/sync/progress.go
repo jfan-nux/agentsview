@@ -12,13 +12,13 @@ const (
 
 // Progress reports sync progress to listeners.
 type Progress struct {
-	Phase          Phase  `json:"phase"`
-	CurrentProject string `json:"current_project,omitempty"`
-	ProjectsTotal  int    `json:"projects_total"`
-	ProjectsDone   int    `json:"projects_done"`
-	SessionsTotal  int    `json:"sessions_total"`
-	SessionsDone   int    `json:"sessions_done"`
-	MessagesIndexed int   `json:"messages_indexed"`
+	Phase           Phase  `json:"phase"`
+	CurrentProject  string `json:"current_project,omitempty"`
+	ProjectsTotal   int    `json:"projects_total"`
+	ProjectsDone    int    `json:"projects_done"`
+	SessionsTotal   int    `json:"sessions_total"`
+	SessionsDone    int    `json:"sessions_done"`
+	MessagesIndexed int    `json:"messages_indexed"`
 }
 
 // SyncResult describes the outcome of syncing a single session.

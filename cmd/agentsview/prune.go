@@ -17,9 +17,9 @@ import (
 
 // PruneConfig holds parsed CLI options for the prune command.
 type PruneConfig struct {
-	Filter  db.PruneFilter
-	DryRun  bool
-	Yes     bool
+	Filter db.PruneFilter
+	DryRun bool
+	Yes    bool
 }
 
 func parsePruneFlags(args []string) (PruneConfig, error) {
@@ -86,9 +86,9 @@ func parsePruneFlags(args []string) (PruneConfig, error) {
 
 // Pruner executes the prune workflow against a database.
 type Pruner struct {
-	DB    *db.DB
-	Out   io.Writer
-	In    io.Reader
+	DB  *db.DB
+	Out io.Writer
+	In  io.Reader
 }
 
 // Prune finds matching sessions and deletes them.

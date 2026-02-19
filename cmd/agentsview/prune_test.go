@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/wesm/agentsview/internal/db"
+	"github.com/wesm/agentsview/internal/dbtest"
 )
 
 func TestParsePruneFlags(t *testing.T) {
@@ -125,7 +126,7 @@ func TestParsePruneFlagsHelp(t *testing.T) {
 }
 
 func TestPrunerEmptyFilterReturnsError(t *testing.T) {
-	d := testDB(t)
+	d := dbtest.OpenTestDB(t)
 
 	pruner, _ := newTestPruner(t, d, "")
 	cfg := PruneConfig{
@@ -175,11 +176,9 @@ func TestConfirm(t *testing.T) {
 }
 
 func TestWriteSummary(t *testing.T) {
-	size1 := int64(1024)
-	size2 := int64(2048)
 	sessions := []db.Session{
-		{ID: "s1", Project: "projA", FileSize: &size1},
-		{ID: "s2", Project: "projA", FileSize: &size2},
+		{ID: "s1", Project: "projA", FileSize: dbtest.Ptr(int64(1024))},
+		{ID: "s2", Project: "projA", FileSize: dbtest.Ptr(int64(2048))},
 		{ID: "s3", Project: "projB"},
 	}
 
@@ -227,22 +226,13 @@ func TestFormatBytes(t *testing.T) {
 	}
 }
 
-func testDB(t *testing.T) *db.DB {
-	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, "test.db")
-	d, err := db.Open(path)
-	if err != nil {
-		t.Fatalf("opening test db: %v", err)
-	}
-	t.Cleanup(func() { d.Close() })
-	return d
-}
-
 func TestPrunerDryRun(t *testing.T) {
-	d := testDB(t)
+	d := dbtest.OpenTestDB(t)
 
-	seedSession(t, d, "s1", "test")
+	dbtest.SeedSession(t, d, "s1", "test", func(s *db.Session) {
+		s.EndedAt = dbtest.Ptr("2024-01-01T00:00:00Z")
+		s.MessageCount = 0
+	})
 
 	pruner, buf := newTestPruner(t, d, "")
 	cfg := PruneConfig{
@@ -264,7 +254,7 @@ func TestPrunerDryRun(t *testing.T) {
 }
 
 func TestPrunerNoMatches(t *testing.T) {
-	d := testDB(t)
+	d := dbtest.OpenTestDB(t)
 
 	pruner, buf := newTestPruner(t, d, "")
 	cfg := PruneConfig{
@@ -281,9 +271,12 @@ func TestPrunerNoMatches(t *testing.T) {
 }
 
 func TestPrunerAbort(t *testing.T) {
-	d := testDB(t)
+	d := dbtest.OpenTestDB(t)
 
-	seedSession(t, d, "s1", "test")
+	dbtest.SeedSession(t, d, "s1", "test", func(s *db.Session) {
+		s.EndedAt = dbtest.Ptr("2024-01-01T00:00:00Z")
+		s.MessageCount = 0
+	})
 
 	pruner, buf := newTestPruner(t, d, "n\n")
 	cfg := PruneConfig{
@@ -299,7 +292,7 @@ func TestPrunerAbort(t *testing.T) {
 	}
 
 	// Session should still exist.
-	s, err := d.GetSession(context.Background(),"s1")
+	s, err := d.GetSession(context.Background(), "s1")
 	if err != nil {
 		t.Fatalf("GetSession: %v", err)
 	}
@@ -309,9 +302,12 @@ func TestPrunerAbort(t *testing.T) {
 }
 
 func TestPrunerConfirmDelete(t *testing.T) {
-	d := testDB(t)
+	d := dbtest.OpenTestDB(t)
 
-	seedSession(t, d, "s1", "test")
+	dbtest.SeedSession(t, d, "s1", "test", func(s *db.Session) {
+		s.EndedAt = dbtest.Ptr("2024-01-01T00:00:00Z")
+		s.MessageCount = 0
+	})
 
 	pruner, buf := newTestPruner(t, d, "y\n")
 	cfg := PruneConfig{
@@ -326,7 +322,7 @@ func TestPrunerConfirmDelete(t *testing.T) {
 		t.Errorf("expected deletion message: %s", buf.String())
 	}
 
-	s, err := d.GetSession(context.Background(),"s1")
+	s, err := d.GetSession(context.Background(), "s1")
 	if err != nil {
 		t.Fatalf("GetSession: %v", err)
 	}
@@ -336,9 +332,12 @@ func TestPrunerConfirmDelete(t *testing.T) {
 }
 
 func TestPrunerYesFlag(t *testing.T) {
-	d := testDB(t)
+	d := dbtest.OpenTestDB(t)
 
-	seedSession(t, d, "s1", "test")
+	dbtest.SeedSession(t, d, "s1", "test", func(s *db.Session) {
+		s.EndedAt = dbtest.Ptr("2024-01-01T00:00:00Z")
+		s.MessageCount = 0
+	})
 
 	pruner, buf := newTestPruner(t, d, "")
 	cfg := PruneConfig{
@@ -372,7 +371,7 @@ func TestDeleteFilesRemovesFiles(t *testing.T) {
 	}
 
 	sessions := []db.Session{
-		{ID: "s1", FilePath: &f},
+		{ID: "s1", FilePath: dbtest.Ptr(f)},
 	}
 
 	removed, reclaimed := deleteFiles(sessions)
@@ -395,9 +394,8 @@ func TestDeleteFilesRemovesFiles(t *testing.T) {
 }
 
 func TestDeleteFilesMissingFile(t *testing.T) {
-	path := "/nonexistent/path/file.jsonl"
 	sessions := []db.Session{
-		{ID: "s1", FilePath: &path},
+		{ID: "s1", FilePath: dbtest.Ptr("/nonexistent/path/file.jsonl")},
 	}
 
 	removed, reclaimed := deleteFiles(sessions)
@@ -443,14 +441,14 @@ func TestPruneHelpExitCode(t *testing.T) {
 	cmd := exec.Command(exe, "-test.run=^TestPruneHelpExitCode$")
 	// Set the helper env var
 	cmd.Env = append(os.Environ(), "GO_TEST_PRUNE_HELPER_PROCESS=1")
-	
+
 	// We might need to capture output to ensure it prints help
 	var out bytes.Buffer
 	cmd.Stderr = &out
 	cmd.Stdout = &out
 
 	err = cmd.Run()
-	
+
 	// Check exit code
 	if err != nil {
 		// If exit code is not 0, err will be of type *ExitError
@@ -468,20 +466,4 @@ func newTestPruner(t *testing.T, d *db.DB, input string) (*Pruner, *bytes.Buffer
 		In:  strings.NewReader(input),
 	}
 	return p, &buf
-}
-
-func seedSession(t *testing.T, d *db.DB, id, project string) {
-	t.Helper()
-	ended := "2024-01-01T00:00:00Z"
-	err := d.UpsertSession(db.Session{
-		ID:           id,
-		Project:      project,
-		Machine:      "local",
-		Agent:        "claude",
-		MessageCount: 0,
-		EndedAt:      &ended,
-	})
-	if err != nil {
-		t.Fatalf("seeding session: %v", err)
-	}
 }

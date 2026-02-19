@@ -408,7 +408,7 @@ func TestClaudeSessionTimestampSemantics(t *testing.T) {
 		)
 		assertTimestamp(t, sess.StartedAt, wantTS)
 		assertTimestamp(t, sess.EndedAt, wantTS)
-		
+
 		if len(msgs) != 1 {
 			t.Fatalf("got %d messages, want 1", len(msgs))
 		}
@@ -625,9 +625,9 @@ func TestParseClaudeSession(t *testing.T) {
 			},
 		},
 		{
-			name:     "hyphenated filename derives session ID",
-			fileName: "my-test-session.jsonl",
-			content:  validContent,
+			name:         "hyphenated filename derives session ID",
+			fileName:     "my-test-session.jsonl",
+			content:      validContent,
 			wantMsgCount: 4,
 			check: func(t *testing.T, sess ParsedSession, _ []ParsedMessage) {
 				t.Helper()
@@ -654,8 +654,8 @@ func TestParseClaudeSession(t *testing.T) {
 			wantMsgCount: 1,
 		},
 		{
-			name: "truncates long first message",
-			content: claudeUserJSON(longMsg, "2024-01-01T00:00:00Z") + "\n",
+			name:         "truncates long first message",
+			content:      claudeUserJSON(longMsg, "2024-01-01T00:00:00Z") + "\n",
 			wantMsgCount: 1,
 			check: func(t *testing.T, sess ParsedSession, _ []ParsedMessage) {
 				t.Helper()
@@ -685,8 +685,8 @@ func TestParseClaudeSession(t *testing.T) {
 			},
 		},
 		{
-			name: "very large message",
-			content: claudeUserJSON(bigMsg, "2024-01-01T00:00:00Z") + "\n",
+			name:         "very large message",
+			content:      claudeUserJSON(bigMsg, "2024-01-01T00:00:00Z") + "\n",
 			wantMsgCount: 1,
 			check: func(t *testing.T, _ ParsedSession, msgs []ParsedMessage) {
 				t.Helper()

@@ -19,6 +19,7 @@ import (
 
 	"github.com/wesm/agentsview/internal/config"
 	"github.com/wesm/agentsview/internal/db"
+	"github.com/wesm/agentsview/internal/dbtest"
 	"github.com/wesm/agentsview/internal/server"
 	"github.com/wesm/agentsview/internal/sync"
 )
@@ -92,22 +93,13 @@ func (te *testEnv) seedSession(
 	t *testing.T, id, project string, msgCount int,
 ) {
 	t.Helper()
-	started := "2025-01-15T10:00:00Z"
-	ended := "2025-01-15T11:00:00Z"
-	first := "Hello world"
-	s := db.Session{
-		ID:           id,
-		Project:      project,
-		Machine:      "test",
-		Agent:        "claude",
-		MessageCount: msgCount,
-		StartedAt:    &started,
-		EndedAt:      &ended,
-		FirstMessage: &first,
-	}
-	if err := te.db.UpsertSession(s); err != nil {
-		t.Fatalf("seeding session: %v", err)
-	}
+	dbtest.SeedSession(t, te.db, id, project, func(s *db.Session) {
+		s.Machine = "test"
+		s.MessageCount = msgCount
+		s.StartedAt = dbtest.Ptr("2025-01-15T10:00:00Z")
+		s.EndedAt = dbtest.Ptr("2025-01-15T11:00:00Z")
+		s.FirstMessage = dbtest.Ptr("Hello world")
+	})
 }
 
 func (te *testEnv) seedMessages(
@@ -213,9 +205,9 @@ func assertStatus(
 }
 
 type LogEntry struct {
-	Type      string      `json:"type"`
-	Timestamp string      `json:"timestamp"`
-	Message   any         `json:"message"`
+	Type      string `json:"type"`
+	Timestamp string `json:"timestamp"`
+	Message   any    `json:"message"`
 }
 
 func buildJSONL(t *testing.T, entries ...LogEntry) string {
@@ -655,12 +647,12 @@ func TestSearch_Limits(t *testing.T) {
 		queryVal  string
 		wantCount int
 	}{
-		{"DefaultLimit", "", 50},           // default
-		{"ExplicitLimit", "limit=10", 10},  // explicit
-		{"ZeroLimit", "limit=0", 50},       // treat as default
-		{"LargeLimit", "limit=1000", 500},  // clamped to 500
-		{"ExactMax", "limit=500", 500},     // max allowed
-		{"JustOver", "limit=501", 500},     // clamped to 500
+		{"DefaultLimit", "", 50},          // default
+		{"ExplicitLimit", "limit=10", 10}, // explicit
+		{"ZeroLimit", "limit=0", 50},      // treat as default
+		{"LargeLimit", "limit=1000", 500}, // clamped to 500
+		{"ExactMax", "limit=500", 500},    // max allowed
+		{"JustOver", "limit=501", 500},    // clamped to 500
 	}
 
 	for _, tt := range tests {
@@ -1257,7 +1249,7 @@ func TestListSessions_Limits(t *testing.T) {
 		limitVal  string
 		wantCount int
 	}{
-		{"DefaultLimit", "", 200},          // db.DefaultSessionLimit
+		{"DefaultLimit", "", 200}, // db.DefaultSessionLimit
 		{"ExplicitLimit", "limit=10", 10},
 		{"LargeLimit", "limit=1000", 500}, // db.MaxSessionLimit
 		{"ExactMax", "limit=500", 500},
@@ -1293,7 +1285,7 @@ func TestGetMessages_Limits(t *testing.T) {
 		limitVal  string
 		wantCount int
 	}{
-		{"DefaultLimit", "", 100},          // db.DefaultMessageLimit
+		{"DefaultLimit", "", 100}, // db.DefaultMessageLimit
 		{"ExplicitLimit", "limit=10", 10},
 		{"LargeLimit", "limit=2000", 1000}, // db.MaxMessageLimit
 		{"ExactMax", "limit=1000", 1000},
