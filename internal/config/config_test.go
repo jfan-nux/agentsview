@@ -73,6 +73,46 @@ func writeConfig(t *testing.T, dir string, data any) {
 	}
 }
 
+// setupConfigDir creates a temp data dir, sets the env var,
+// and returns (dir, configPath).
+func setupConfigDir(t *testing.T) (string, string) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("AGENT_VIEWER_DATA_DIR", dir)
+	return dir, filepath.Join(dir, "config.json")
+}
+
+// writeConfigRaw writes raw string content to config.json.
+// Use writeConfig for structured data; use this for exact
+// string control or intentionally invalid JSON.
+func writeConfigRaw(
+	t *testing.T, dir string, content string,
+) {
+	t.Helper()
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(
+		path, []byte(content), 0o600,
+	); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+}
+
+// readConfigFile reads and unmarshals config.json into a Config.
+func readConfigFile(t *testing.T, dir string) Config {
+	t.Helper()
+	data, err := os.ReadFile(
+		filepath.Join(dir, "config.json"),
+	)
+	if err != nil {
+		t.Fatalf("reading config file: %v", err)
+	}
+	var cfg Config
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		t.Fatalf("parsing config file: %v", err)
+	}
+	return cfg
+}
+
 // configWithTmpDir returns a Config with DataDir set to a fresh
 // temp directory.
 func configWithTmpDir(t *testing.T) (Config, string) {
@@ -228,8 +268,7 @@ func TestMigrateFromLegacy_FilePermissions(t *testing.T) {
 }
 
 func TestLoadEnv_OverridesDataDir(t *testing.T) {
-	custom := t.TempDir()
-	t.Setenv("AGENT_VIEWER_DATA_DIR", custom)
+	custom, _ := setupConfigDir(t)
 
 	cfg, err := Default()
 	if err != nil {
