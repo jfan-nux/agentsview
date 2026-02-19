@@ -1,6 +1,5 @@
 <script lang="ts">
   import { analytics } from "../../stores/analytics.svelte.js";
-  import { router } from "../../stores/router.svelte.js";
 
   const CELL_SIZE = 11;
   const CELL_GAP = 2;
@@ -71,7 +70,7 @@
   }
 
   function handleCellClick(cell: DayCell) {
-    router.navigate("sessions", { date: cell.date });
+    analytics.setDateRange(cell.date, cell.date);
   }
 
   // Use a simple pre-computed grid
