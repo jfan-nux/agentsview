@@ -48,6 +48,8 @@ export function registerShortcuts(
         ui.closePublishModal();
       } else if (ui.shortcutsModalOpen) {
         ui.closeShortcutsModal();
+      } else if (sessions.activeSessionId) {
+        sessions.deselectSession();
       }
       return;
     }

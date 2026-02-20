@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { analytics } from "../../stores/analytics.svelte.js";
-  import { router } from "../../stores/router.svelte.js";
 
   const CELL_SIZE = 11;
   const CELL_GAP = 2;
@@ -60,13 +58,10 @@
       day: "numeric",
       year: "numeric",
     });
-    const hint = cell.value > 0
-      ? " (double-click to view sessions)"
-      : "";
     tooltip = {
       x: rect.left + rect.width / 2,
       y: rect.top - 4,
-      text: `${label}: ${cell.value.toLocaleString()} ${analytics.metric}${hint}`,
+      text: `${label}: ${cell.value.toLocaleString()} ${analytics.metric}`,
     };
   }
 
@@ -76,10 +71,6 @@
 
   function handleCellClick(cell: DayCell) {
     analytics.selectDate(cell.date);
-  }
-
-  function handleCellNavigate(cell: DayCell) {
-    router.navigate("sessions", { date: cell.date });
   }
 
   // Use a simple pre-computed grid
@@ -166,7 +157,7 @@
       </button>
     </div>
   {:else if grid.cols.length > 0}
-    <div class="heatmap-scroll" in:fade={{ duration: 150 }}>
+    <div class="heatmap-scroll">
       <svg
         width={svgWidth}
         height={svgHeight}
@@ -214,9 +205,6 @@
               onclick={() => {
                 if (cell.value > 0 || analytics.selectedDate === cell.date)
                   handleCellClick(cell);
-              }}
-              ondblclick={() => {
-                if (cell.value > 0) handleCellNavigate(cell);
               }}
               onkeydown={(e) => {
                 if (e.key === "Enter" && (cell.value > 0 || analytics.selectedDate === cell.date))
@@ -302,7 +290,6 @@
 
   .heatmap-cell {
     cursor: default;
-    transition: opacity 0.1s;
   }
 
   .heatmap-cell.clickable {

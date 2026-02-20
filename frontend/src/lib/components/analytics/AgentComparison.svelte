@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { analytics } from "../../stores/analytics.svelte.js";
   import { router } from "../../stores/router.svelte.js";
 
@@ -109,7 +108,7 @@
       No comparison data (need 2+ agents)
     </div>
   {:else}
-    <div class="comparison-table" in:fade={{ duration: 150 }}>
+    <div class="comparison-table">
       <div class="table-header">
         <span class="col-agent">Agent</span>
         <span class="col-num">Sessions</span>

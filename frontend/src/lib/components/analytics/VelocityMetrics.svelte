@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { analytics } from "../../stores/analytics.svelte.js";
   import type {
     VelocityOverview,
@@ -73,7 +72,7 @@
   {:else if velocity}
     {#if activeTab === "overall"}
       {@const o = velocity.overall}
-      <div class="metrics-grid" in:fade={{ duration: 150 }}>
+      <div class="metrics-grid">
         <div class="metric-card">
           <div class="metric-label">Turn Cycle (p50)</div>
           <div class="metric-value">
@@ -118,7 +117,7 @@
         </div>
       </div>
     {:else if breakdowns.length > 0}
-      <div class="breakdown-table" in:fade={{ duration: 150 }}>
+      <div class="breakdown-table">
         <div class="breakdown-header">
           <span class="col-label">Group</span>
           <span class="col-num">Sessions</span>

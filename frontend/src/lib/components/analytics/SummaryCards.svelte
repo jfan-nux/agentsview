@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { analytics } from "../../stores/analytics.svelte.js";
 
   function formatNum(n: number): string {
@@ -70,7 +69,7 @@
         <span class="card-value error">--</span>
         <span class="card-label">{card.label}</span>
       {:else}
-        <span class="card-value" in:fade={{ duration: 150 }}>
+        <span class="card-value">
           {card.value()}
         </span>
         <span class="card-label">{card.label}</span>
@@ -144,7 +143,6 @@
     height: 20px;
     background: var(--bg-inset);
     border-radius: var(--radius-sm);
-    animation: pulse 1.5s ease-in-out infinite;
   }
 
   .skeleton-label {
@@ -152,13 +150,6 @@
     height: 12px;
     background: var(--bg-inset);
     border-radius: var(--radius-sm);
-    animation: pulse 1.5s ease-in-out infinite;
-    animation-delay: 0.1s;
-  }
-
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
   }
 
   .error-bar {

@@ -1,7 +1,5 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { analytics } from "../../stores/analytics.svelte.js";
-  import { router } from "../../stores/router.svelte.js";
 
   const BAR_HEIGHT = 120;
   const LABEL_HEIGHT = 20;
@@ -150,18 +148,12 @@
   ) {
     if (bar.value === 0) return;
     const g = analytics.granularity;
-    if (g === "week") {
-      router.navigate("sessions", {
-        date_from: bar.date,
-        date_to: addDays(bar.date, 6),
-      });
+    if (g === "day") {
+      analytics.selectDate(bar.date);
+    } else if (g === "week") {
+      analytics.setDateRange(bar.date, addDays(bar.date, 6));
     } else if (g === "month") {
-      router.navigate("sessions", {
-        date_from: bar.date,
-        date_to: endOfMonth(bar.date),
-      });
-    } else {
-      router.navigate("sessions", { date: bar.date });
+      analytics.setDateRange(bar.date, endOfMonth(bar.date));
     }
   }
 
@@ -229,7 +221,7 @@
       </button>
     </div>
   {:else if chart.bars.length > 0}
-    <div class="chart-area" bind:this={containerEl} in:fade={{ duration: 150 }}>
+    <div class="chart-area" bind:this={containerEl}>
       <svg
         width={svgWidth}
         height={SVG_HEIGHT}
@@ -359,7 +351,6 @@
     fill: var(--accent-blue);
     opacity: 0.8;
     cursor: pointer;
-    transition: opacity 0.1s;
   }
 
   .bar:hover {

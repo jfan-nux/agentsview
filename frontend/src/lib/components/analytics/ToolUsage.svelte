@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { analytics } from "../../stores/analytics.svelte.js";
   import type { ToolCategoryCount } from "../../api/types.js";
 
@@ -130,7 +129,7 @@
       </button>
     </div>
   {:else if categories.length > 0}
-    <div class="sections" in:fade={{ duration: 150 }}>
+    <div class="sections">
       <div class="section">
         <h4 class="section-title">By Category</h4>
         <div class="bar-list">
@@ -272,7 +271,6 @@
   .bar-fill {
     height: 100%;
     border-radius: 2px;
-    transition: width 0.2s ease;
     min-width: 2px;
   }
 
@@ -317,7 +315,6 @@
     max-width: 32px;
     background: var(--accent-blue, #3b82f6);
     border-radius: 2px 2px 0 0;
-    transition: height 0.2s ease;
     min-height: 2px;
   }
 

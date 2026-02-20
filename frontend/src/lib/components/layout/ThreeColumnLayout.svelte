@@ -4,7 +4,7 @@
   interface Props {
     sidebar: Snippet;
     content: Snippet;
-    minimap: Snippet;
+    minimap?: Snippet;
   }
 
   let { sidebar, content, minimap }: Props = $props();
@@ -17,9 +17,11 @@
   <main class="content">
     {@render content()}
   </main>
-  <aside class="minimap">
-    {@render minimap()}
-  </aside>
+  {#if minimap}
+    <aside class="minimap">
+      {@render minimap()}
+    </aside>
+  {/if}
 </div>
 
 <style>

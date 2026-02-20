@@ -122,6 +122,10 @@ class SessionsStore {
     this.activeSessionId = id;
   }
 
+  deselectSession() {
+    this.activeSessionId = null;
+  }
+
   navigateSession(delta: number) {
     const idx = this.sessions.findIndex(
       (s) => s.id === this.activeSessionId,

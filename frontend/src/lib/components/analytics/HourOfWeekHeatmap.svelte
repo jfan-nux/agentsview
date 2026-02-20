@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { analytics } from "../../stores/analytics.svelte.js";
 
   const CELL_SIZE = 14;
@@ -104,7 +103,7 @@
 </script>
 
 <div class="how-container">
-  <h3 class="chart-title">Hour of Week</h3>
+  <h3 class="chart-title">Activity by Day and Hour</h3>
 
   {#if analytics.loading.hourOfWeek}
     <div class="loading">Loading...</div>
@@ -119,7 +118,7 @@
       </button>
     </div>
   {:else if grid}
-    <div class="how-scroll" in:fade={{ duration: 150 }}>
+    <div class="how-scroll">
       <svg
         width={svgWidth}
         height={svgHeight}
@@ -208,7 +207,6 @@
 
   .how-cell {
     cursor: default;
-    transition: opacity 0.1s;
   }
 
   .how-cell:hover {

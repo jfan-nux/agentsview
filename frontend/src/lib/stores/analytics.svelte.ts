@@ -19,7 +19,7 @@ import {
   getAnalyticsTools,
   type AnalyticsParams,
 } from "../api/client.js";
-import { router } from "./router.svelte.js";
+
 
 function localDateStr(d: Date): string {
   const y = d.getFullYear();
@@ -317,28 +317,10 @@ class AnalyticsStore {
     }
   }
 
-  private updateURL() {
-    const params: Record<string, string> = {
-      from: this.from,
-      to: this.to,
-    };
-    if (this.granularity !== "day") {
-      params["granularity"] = this.granularity;
-    }
-    if (this.metric !== "messages") {
-      params["metric"] = this.metric;
-    }
-    if (this.selectedDate) {
-      params["selected"] = this.selectedDate;
-    }
-    router.navigate("analytics", params);
-  }
-
   setDateRange(from: string, to: string) {
     this.from = from;
     this.to = to;
     this.selectedDate = null;
-    this.updateURL();
     this.fetchAll();
   }
 
@@ -348,7 +330,6 @@ class AnalyticsStore {
     } else {
       this.selectedDate = date;
     }
-    this.updateURL();
     this.fetchSummary();
     this.fetchActivity();
     this.fetchProjects();
@@ -359,31 +340,12 @@ class AnalyticsStore {
 
   setGranularity(g: string) {
     this.granularity = g;
-    this.updateURL();
     this.fetchActivity();
   }
 
   setMetric(m: string) {
     this.metric = m;
-    this.updateURL();
     this.fetchHeatmap();
-  }
-
-  initFromParams(params: Record<string, string>) {
-    if (params["from"]) this.from = params["from"];
-    if (params["to"]) this.to = params["to"];
-    const g = params["granularity"];
-    if (g && ["day", "week", "month"].includes(g)) {
-      this.granularity = g;
-    }
-    const m = params["metric"];
-    if (m && ["messages", "sessions"].includes(m)) {
-      this.metric = m;
-    }
-    const sel = params["selected"];
-    if (sel && /^\d{4}-\d{2}-\d{2}$/.test(sel)) {
-      this.selectedDate = sel;
-    }
   }
 }
 

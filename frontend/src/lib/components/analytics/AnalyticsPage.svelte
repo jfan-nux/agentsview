@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import DateRangePicker from "./DateRangePicker.svelte";
   import SummaryCards from "./SummaryCards.svelte";
   import Heatmap from "./Heatmap.svelte";
@@ -11,8 +11,9 @@
   import ToolUsage from "./ToolUsage.svelte";
   import AgentComparison from "./AgentComparison.svelte";
   import { analytics } from "../../stores/analytics.svelte.js";
-  import { router } from "../../stores/router.svelte.js";
   import { exportAnalyticsCSV } from "../../utils/csv-export.js";
+
+  const REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
   function handleExportCSV() {
     exportAnalyticsCSV({
@@ -26,15 +27,36 @@
     });
   }
 
+  let refreshTimer: ReturnType<typeof setInterval> | undefined;
+
   onMount(() => {
-    analytics.initFromParams(router.params);
     analytics.fetchAll();
+    refreshTimer = setInterval(
+      () => analytics.fetchAll(),
+      REFRESH_INTERVAL_MS,
+    );
+  });
+
+  onDestroy(() => {
+    if (refreshTimer !== undefined) {
+      clearInterval(refreshTimer);
+    }
   });
 </script>
 
 <div class="analytics-page">
   <div class="analytics-toolbar">
     <DateRangePicker />
+    <button
+      class="refresh-btn"
+      onclick={() => analytics.fetchAll()}
+      title="Refresh analytics"
+      aria-label="Refresh analytics"
+    >
+      <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+        <path d="M8 3a5 5 0 00-4.546 2.914.5.5 0 01-.908-.418A6 6 0 0114 8a.5.5 0 01-1 0 5 5 0 00-5-5zm4.546 7.086a.5.5 0 01.908.418A6 6 0 012 8a.5.5 0 011 0 5 5 0 005 5 5 5 0 004.546-2.914z"/>
+      </svg>
+    </button>
     <button class="export-btn" onclick={handleExportCSV}>
       Export CSV
     </button>
@@ -95,6 +117,22 @@
     background: var(--bg-surface);
     border-bottom: 1px solid var(--border-muted);
     flex-shrink: 0;
+  }
+
+  .refresh-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .refresh-btn:hover {
+    background: var(--bg-surface-hover);
+    color: var(--text-primary);
   }
 
   .export-btn {

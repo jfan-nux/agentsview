@@ -2,7 +2,6 @@
   import { ui } from "../../stores/ui.svelte.js";
   import { sessions } from "../../stores/sessions.svelte.js";
   import { sync } from "../../stores/sync.svelte.js";
-  import { router } from "../../stores/router.svelte.js";
   import { getExportUrl } from "../../api/client.js";
 
   const isMac = navigator.platform.toUpperCase().includes("MAC");
@@ -22,70 +21,56 @@
     }
   }
 
-  const isSessionsView = $derived(router.route === "sessions");
-  const isAnalyticsView = $derived(router.route === "analytics");
+  const hasActiveSession = $derived(
+    sessions.activeSessionId !== null,
+  );
 </script>
 
 <header class="header">
   <div class="header-left">
-    <svg class="header-logo" width="18" height="18" viewBox="0 0 32 32" aria-hidden="true">
-      <rect width="32" height="32" rx="6" fill="var(--accent-blue, #3b82f6)"/>
-      <rect x="13" y="10" width="6" height="16" rx="2" fill="var(--bg-surface, #fff)"/>
-      <rect x="11" y="5" width="10" height="7" rx="2" fill="var(--bg-surface, #fff)"/>
-      <circle cx="18" cy="8.5" r="2" fill="var(--accent-blue, #3b82f6)"/>
-      <circle cx="18" cy="8.5" r="1" fill="#1d4ed8"/>
-    </svg>
-    <span class="header-title">AgentsView</span>
+    <button
+      class="header-home"
+      onclick={() => sessions.deselectSession()}
+      title="Back to dashboard"
+    >
+      <svg class="header-logo" width="18" height="18" viewBox="0 0 32 32" aria-hidden="true">
+        <rect width="32" height="32" rx="6" fill="var(--accent-blue, #3b82f6)"/>
+        <rect x="13" y="10" width="6" height="16" rx="2" fill="var(--bg-surface, #fff)"/>
+        <rect x="11" y="5" width="10" height="7" rx="2" fill="var(--bg-surface, #fff)"/>
+        <circle cx="18" cy="8.5" r="2" fill="var(--accent-blue, #3b82f6)"/>
+        <circle cx="18" cy="8.5" r="1" fill="#1d4ed8"/>
+      </svg>
+      <span class="header-title">AgentsView</span>
+    </button>
 
-    <nav class="header-nav">
-      <button
-        class="nav-tab"
-        class:active={isSessionsView}
-        onclick={() => router.navigate("sessions")}
-      >
-        Sessions
-      </button>
-      <button
-        class="nav-tab"
-        class:active={isAnalyticsView}
-        onclick={() => router.navigate("analytics")}
-      >
-        Analytics
-      </button>
-    </nav>
-
-    {#if isSessionsView}
-      <select
-        class="project-select"
-        value={sessions.projectFilter}
-        onchange={handleProjectChange}
-      >
-        <option value="">All Projects</option>
-        {#each sessions.projects as project}
-          <option value={project.name}>
-            {project.name} ({project.session_count})
-          </option>
-        {/each}
-      </select>
-    {/if}
+    <select
+      class="project-select"
+      value={sessions.projectFilter}
+      onchange={handleProjectChange}
+    >
+      <option value="">All Projects</option>
+      {#each sessions.projects as project}
+        <option value={project.name}>
+          {project.name} ({project.session_count})
+        </option>
+      {/each}
+    </select>
   </div>
 
-  {#if isSessionsView}
-    <button
-      class="search-hint"
-      onclick={() => ui.openCommandPalette()}
-      title="Search sessions ({modKey}+K)"
-    >
-      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-        <path d="M11.742 10.344a6.5 6.5 0 10-1.397 1.398h-.001l3.85 3.85a1 1 0 001.415-1.414l-3.85-3.85zm-5.44.656a5 5 0 110-10 5 5 0 010 10z"/>
-      </svg>
-      <span class="search-hint-text">Search sessions...</span>
-      <kbd class="search-hint-kbd">{modKey}+K</kbd>
-    </button>
-  {/if}
+  <button
+    class="search-hint"
+    onclick={() => ui.openCommandPalette()}
+    title="Search sessions ({modKey}+K)"
+  >
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M11.742 10.344a6.5 6.5 0 10-1.397 1.398h-.001l3.85 3.85a1 1 0 001.415-1.414l-3.85-3.85zm-5.44.656a5 5 0 110-10 5 5 0 010 10z"/>
+    </svg>
+    <span class="search-hint-text">Search sessions...</span>
+    <kbd class="search-hint-kbd">{modKey}+K</kbd>
+  </button>
 
   <div class="header-right">
-    {#if isSessionsView}
+    {#if hasActiveSession}
       <button
         class="header-btn"
         class:active={ui.showThinking}
@@ -201,6 +186,20 @@
     min-width: 0;
   }
 
+  .header-home {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    padding: 2px 6px 2px 2px;
+    transition: background 0.1s;
+  }
+
+  .header-home:hover {
+    background: var(--bg-surface-hover);
+  }
+
   .header-logo {
     flex-shrink: 0;
   }
@@ -210,34 +209,6 @@
     font-weight: 600;
     color: var(--text-primary);
     white-space: nowrap;
-  }
-
-  .header-nav {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-  }
-
-  .nav-tab {
-    height: 24px;
-    padding: 0 8px;
-    border-radius: var(--radius-sm);
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--text-muted);
-    cursor: pointer;
-    transition: background 0.1s, color 0.1s;
-    white-space: nowrap;
-  }
-
-  .nav-tab:hover {
-    background: var(--bg-surface-hover);
-    color: var(--text-secondary);
-  }
-
-  .nav-tab.active {
-    background: var(--bg-inset);
-    color: var(--text-primary);
   }
 
   .project-select {

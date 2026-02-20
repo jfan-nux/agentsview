@@ -1,4 +1,4 @@
-type Route = "sessions" | "analytics";
+type Route = "sessions";
 
 function parseHash(): { route: Route; params: Record<string, string> } {
   const hash = window.location.hash.slice(1); // remove #
@@ -7,7 +7,6 @@ function parseHash(): { route: Route; params: Record<string, string> } {
   }
 
   const qIdx = hash.indexOf("?");
-  const path = qIdx >= 0 ? hash.slice(0, qIdx) : hash;
   const params: Record<string, string> = {};
 
   if (qIdx >= 0) {
@@ -21,10 +20,6 @@ function parseHash(): { route: Route; params: Record<string, string> } {
     }
   }
 
-  const clean = path.replace(/^\//, "");
-  if (clean === "analytics") {
-    return { route: "analytics", params };
-  }
   return { route: "sessions", params };
 }
 

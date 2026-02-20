@@ -109,14 +109,12 @@
 
   // React to route changes: initialize session filters from URL params
   $effect(() => {
-    const route = router.route;
+    const _route = router.route;
     const params = router.params;
     untrack(() => {
-      if (route === "sessions") {
-        sessions.initFromParams(params);
-        sessions.load();
-        sessions.loadProjects();
-      }
+      sessions.initFromParams(params);
+      sessions.load();
+      sessions.loadProjects();
     });
   });
 
@@ -150,21 +148,23 @@
 
 <AppHeader />
 
-{#if router.route === "analytics"}
-  <AnalyticsPage />
-{:else}
-  <ThreeColumnLayout>
-    {#snippet sidebar()}
-      <SessionList />
-    {/snippet}
+<ThreeColumnLayout>
+  {#snippet sidebar()}
+    <SessionList />
+  {/snippet}
 
-    {#snippet content()}
+  {#snippet content()}
+    {#if sessions.activeSessionId}
       <MessageList
         bind:this={messageListRef}
         onScrollMetrics={handleScrollMetrics}
       />
-    {/snippet}
+    {:else}
+      <AnalyticsPage />
+    {/if}
+  {/snippet}
 
+  {#if sessions.activeSessionId}
     {#snippet minimap()}
       <Minimap
         {scrollOffset}
@@ -173,10 +173,10 @@
         onClickIndex={handleMinimapClick}
       />
     {/snippet}
-  </ThreeColumnLayout>
+  {/if}
+</ThreeColumnLayout>
 
-  <StatusBar />
-{/if}
+<StatusBar />
 
 {#if ui.commandPaletteOpen}
   <CommandPalette />

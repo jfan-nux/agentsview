@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { fade } from "svelte/transition";
   import { analytics } from "../../stores/analytics.svelte.js";
   import { router } from "../../stores/router.svelte.js";
   import type { DistributionBucket } from "../../api/types.js";
@@ -89,7 +88,7 @@
       </button>
     </div>
   {:else if activeBuckets.length > 0}
-    <div class="bar-chart" in:fade={{ duration: 150 }}>
+    <div class="bar-chart">
       {#each activeBuckets as bucket}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -206,7 +205,6 @@
     height: 100%;
     background: var(--accent-blue, #3b82f6);
     border-radius: var(--radius-sm);
-    transition: width 0.2s ease;
     min-width: 2px;
   }
 
