@@ -18,7 +18,11 @@ import (
 	"github.com/wesm/agentsview/internal/sync"
 )
 
-var version = "dev"
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildDate = ""
+)
 
 const (
 	periodicSyncInterval = 15 * time.Minute
@@ -65,7 +69,13 @@ func runServe(args []string) {
 	}
 	cfg.Port = port
 
-	srv := server.New(cfg, database, engine)
+	srv := server.New(cfg, database, engine,
+		server.WithVersion(server.VersionInfo{
+			Version:   version,
+			Commit:    commit,
+			BuildDate: buildDate,
+		}),
+	)
 
 	url := fmt.Sprintf("http://%s:%d", cfg.Host, cfg.Port)
 	fmt.Printf("agentsview %s listening at %s\n", version, url)

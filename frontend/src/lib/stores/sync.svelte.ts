@@ -3,6 +3,7 @@ import type {
   SyncProgress,
   SyncStats,
   Stats,
+  VersionInfo,
 } from "../api/types.js";
 
 const POLL_INTERVAL_MS = 10_000;
@@ -13,6 +14,9 @@ class SyncStore {
   lastSync: string | null = $state(null);
   lastSyncStats: SyncStats | null = $state(null);
   stats: Stats | null = $state(null);
+  serverVersion: VersionInfo | null = $state(null);
+  versionMismatch: boolean = $state(false);
+  readonly buildCommit: string = __BUILD_COMMIT__;
 
   private watchEventSource: EventSource | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null =
@@ -50,6 +54,18 @@ class SyncStore {
   async loadStats() {
     try {
       this.stats = await api.getStats();
+    } catch {
+      // Non-fatal
+    }
+  }
+
+  async loadVersion() {
+    try {
+      this.serverVersion = await api.getVersion();
+      this.versionMismatch =
+        this.buildCommit !== "unknown" &&
+        this.serverVersion.commit !== "unknown" &&
+        this.buildCommit !== this.serverVersion.commit;
     } catch {
       // Non-fatal
     }

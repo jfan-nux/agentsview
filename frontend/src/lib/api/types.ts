@@ -1,3 +1,10 @@
+/** Matches Go VersionInfo struct in internal/server/server.go */
+export interface VersionInfo {
+  version: string;
+  commit: string;
+  build_date: string;
+}
+
 /** Matches Go Session struct in internal/db/sessions.go */
 export interface Session {
   id: string;

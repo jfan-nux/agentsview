@@ -17,6 +17,13 @@ import (
 	"github.com/wesm/agentsview/internal/web"
 )
 
+// VersionInfo holds build-time version metadata.
+type VersionInfo struct {
+	Version   string `json:"version"`
+	Commit    string `json:"commit"`
+	BuildDate string `json:"build_date"`
+}
+
 // Server is the HTTP server that serves the SPA and REST API.
 type Server struct {
 	mu      gosync.RWMutex
@@ -25,6 +32,7 @@ type Server struct {
 	engine  *sync.Engine
 	mux     *http.ServeMux
 	httpSrv *http.Server
+	version VersionInfo
 
 	spaFS      fs.FS
 	spaHandler http.Handler
@@ -33,6 +41,7 @@ type Server struct {
 // New creates a new Server.
 func New(
 	cfg config.Config, database *db.DB, engine *sync.Engine,
+	opts ...Option,
 ) *Server {
 	dist, err := web.Assets()
 	if err != nil {
@@ -47,8 +56,19 @@ func New(
 		spaFS:      dist,
 		spaHandler: http.FileServerFS(dist),
 	}
+	for _, opt := range opts {
+		opt(s)
+	}
 	s.routes()
 	return s
+}
+
+// Option configures a Server.
+type Option func(*Server)
+
+// WithVersion sets the build-time version metadata.
+func WithVersion(v VersionInfo) Option {
+	return func(s *Server) { s.version = v }
 }
 
 func (s *Server) routes() {
@@ -88,6 +108,7 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /api/v1/projects", s.withTimeout(s.handleListProjects))
 	s.mux.Handle("GET /api/v1/machines", s.withTimeout(s.handleListMachines))
 	s.mux.Handle("GET /api/v1/stats", s.withTimeout(s.handleGetStats))
+	s.mux.Handle("GET /api/v1/version", s.withTimeout(s.handleGetVersion))
 	s.mux.HandleFunc("POST /api/v1/sync", s.handleTriggerSync)
 	s.mux.Handle("GET /api/v1/sync/status", s.withTimeout(s.handleSyncStatus))
 	s.mux.Handle("GET /api/v1/config/github", s.withTimeout(s.handleGetGithubConfig))
@@ -98,6 +119,12 @@ func (s *Server) routes() {
 	// SPA fallback: serve embedded frontend
 	// Do not use timeout handler for static assets to avoid buffering.
 	s.mux.Handle("/", http.HandlerFunc(s.handleSPA))
+}
+
+func (s *Server) handleGetVersion(
+	w http.ResponseWriter, _ *http.Request,
+) {
+	writeJSON(w, http.StatusOK, s.version)
 }
 
 func (s *Server) handleSPA(w http.ResponseWriter, r *http.Request) {

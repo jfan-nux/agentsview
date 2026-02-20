@@ -121,6 +121,7 @@
   onMount(() => {
     sync.loadStatus();
     sync.loadStats();
+    sync.loadVersion();
     sync.startPolling();
 
     const cleanup = registerShortcuts({ navigateMessage });

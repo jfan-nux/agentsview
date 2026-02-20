@@ -30,10 +30,26 @@
   </div>
 
   <div class="status-right">
+    {#if sync.versionMismatch}
+      <button
+        class="version-warn"
+        onclick={() => window.location.reload()}
+        title="Frontend and backend versions differ. Click to reload."
+      >
+        version mismatch - reload
+      </button>
+      <span class="sep">&middot;</span>
+    {/if}
     {#if progressText}
       <span class="sync-progress">{progressText}</span>
     {:else if sync.lastSync}
       <span>synced {formatRelativeTime(sync.lastSync)}</span>
+    {/if}
+    {#if sync.serverVersion}
+      <span class="sep">&middot;</span>
+      <span class="version" title="Build: {sync.serverVersion.commit}">
+        {sync.serverVersion.version}
+      </span>
     {/if}
   </div>
 </footer>
@@ -65,5 +81,20 @@
 
   .sync-progress {
     color: var(--accent-green);
+  }
+
+  .version-warn {
+    color: var(--accent-red);
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+
+  .version-warn:hover {
+    text-decoration: underline;
+  }
+
+  .version {
+    font-family: var(--font-mono);
   }
 </style>

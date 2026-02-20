@@ -7,6 +7,7 @@ import type {
   ProjectsResponse,
   MachinesResponse,
   Stats,
+  VersionInfo,
   SyncStatus,
   SyncProgress,
   SyncStats,
@@ -136,6 +137,10 @@ export function getMachines(): Promise<MachinesResponse> {
 
 export function getStats(): Promise<Stats> {
   return fetchJSON("/stats");
+}
+
+export function getVersion(): Promise<VersionInfo> {
+  return fetchJSON("/version");
 }
 
 /* Sync */
