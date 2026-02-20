@@ -9,6 +9,7 @@
   import SessionShape from "./SessionShape.svelte";
   import VelocityMetrics from "./VelocityMetrics.svelte";
   import ToolUsage from "./ToolUsage.svelte";
+  import AgentComparison from "./AgentComparison.svelte";
   import { analytics } from "../../stores/analytics.svelte.js";
   import { router } from "../../stores/router.svelte.js";
 
@@ -53,6 +54,10 @@
 
       <div class="chart-panel wide">
         <ToolUsage />
+      </div>
+
+      <div class="chart-panel wide">
+        <AgentComparison />
       </div>
     </div>
   </div>

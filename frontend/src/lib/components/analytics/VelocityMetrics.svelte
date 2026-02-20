@@ -109,6 +109,12 @@
             {formatRate(o.chars_per_active_min)}
           </div>
         </div>
+        <div class="metric-card">
+          <div class="metric-label">Tools / Active Min</div>
+          <div class="metric-value">
+            {formatRate(o.tool_calls_per_active_min)}
+          </div>
+        </div>
       </div>
     {:else if breakdowns.length > 0}
       <div class="breakdown-table">
@@ -118,6 +124,7 @@
           <span class="col-num">Cycle p50</span>
           <span class="col-num">Cycle p90</span>
           <span class="col-num">Msgs/min</span>
+          <span class="col-num">Tools/min</span>
         </div>
         {#each breakdowns as bd}
           <div class="breakdown-row">
@@ -131,6 +138,9 @@
             </span>
             <span class="col-num">
               {formatRate(bd.overview.msgs_per_active_min)}
+            </span>
+            <span class="col-num">
+              {formatRate(bd.overview.tool_calls_per_active_min)}
             </span>
           </div>
         {/each}

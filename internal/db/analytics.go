@@ -1413,10 +1413,11 @@ type Percentiles struct {
 
 // VelocityOverview holds aggregate velocity metrics.
 type VelocityOverview struct {
-	TurnCycleSec      Percentiles `json:"turn_cycle_sec"`
-	FirstResponseSec  Percentiles `json:"first_response_sec"`
-	MsgsPerActiveMin  float64     `json:"msgs_per_active_min"`
-	CharsPerActiveMin float64     `json:"chars_per_active_min"`
+	TurnCycleSec          Percentiles `json:"turn_cycle_sec"`
+	FirstResponseSec      Percentiles `json:"first_response_sec"`
+	MsgsPerActiveMin      float64     `json:"msgs_per_active_min"`
+	CharsPerActiveMin     float64     `json:"chars_per_active_min"`
+	ToolCallsPerActiveMin float64     `json:"tool_calls_per_active_min"`
 }
 
 // VelocityBreakdown is velocity metrics for a subgroup.
@@ -1452,6 +1453,7 @@ type velocityAccumulator struct {
 	firstResponses []float64
 	totalMsgs      int
 	totalChars     int
+	totalToolCalls int
 	activeMinutes  float64
 	sessions       int
 }
@@ -1478,6 +1480,8 @@ func (a *velocityAccumulator) computeOverview() VelocityOverview {
 			float64(a.totalMsgs)/a.activeMinutes*10) / 10
 		v.CharsPerActiveMin = math.Round(
 			float64(a.totalChars)/a.activeMinutes*10) / 10
+		v.ToolCallsPerActiveMin = math.Round(
+			float64(a.totalToolCalls)/a.activeMinutes*10) / 10
 	}
 	return v
 }
@@ -1546,6 +1550,42 @@ func (db *DB) GetAnalyticsVelocity(
 			return db.queryVelocityMsgs(
 				ctx, chunk, loc, sessionMsgs,
 			)
+		})
+	if err != nil {
+		return VelocityResponse{}, err
+	}
+
+	// Phase 2b: Fetch tool call counts per session (chunked)
+	toolCountMap := make(map[string]int)
+	err = queryChunked(sessionIDs,
+		func(chunk []string) error {
+			ph, chunkArgs := inPlaceholders(chunk)
+			q := `SELECT session_id, COUNT(*)
+				FROM tool_calls
+				WHERE session_id IN ` + ph + `
+				GROUP BY session_id`
+			rows, qErr := db.reader.QueryContext(
+				ctx, q, chunkArgs...,
+			)
+			if qErr != nil {
+				return fmt.Errorf(
+					"querying velocity tool_calls: %w",
+					qErr,
+				)
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var sid string
+				var count int
+				if err := rows.Scan(&sid, &count); err != nil {
+					return fmt.Errorf(
+						"scanning velocity tool_call: %w",
+						err,
+					)
+				}
+				toolCountMap[sid] = count
+			}
+			return rows.Err()
 		})
 	if err != nil {
 		return VelocityResponse{}, err
@@ -1657,9 +1697,11 @@ func (db *DB) GetAnalyticsVelocity(
 		}
 		activeMins := activeSec / 60.0
 		if activeMins > 0 {
+			tc := toolCountMap[sid]
 			for _, a := range accums {
 				a.totalMsgs += len(msgs)
 				a.totalChars += asstChars
+				a.totalToolCalls += tc
 				a.activeMinutes += activeMins
 			}
 		}

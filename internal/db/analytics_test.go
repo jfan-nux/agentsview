@@ -1238,6 +1238,88 @@ func TestGetAnalyticsVelocity(t *testing.T) {
 		}
 	})
 
+	t.Run("ToolCallsPerActiveMin", func(t *testing.T) {
+		d2 := testDB(t)
+		insertSession(t, d2, "vt1", "proj", func(s *Session) {
+			s.StartedAt = Ptr("2024-06-01T09:00:00Z")
+			s.MessageCount = 4
+			s.Agent = "claude"
+		})
+		insertMessages(t, d2,
+			Message{
+				SessionID: "vt1", Ordinal: 0, Role: "user",
+				Content: "hi", ContentLength: 2,
+				Timestamp: "2024-06-01T09:00:00Z",
+			},
+			Message{
+				SessionID: "vt1", Ordinal: 1,
+				Role:    "assistant",
+				Content: "hello", ContentLength: 5,
+				Timestamp: "2024-06-01T09:00:10Z",
+			},
+			Message{
+				SessionID: "vt1", Ordinal: 2, Role: "user",
+				Content: "do X", ContentLength: 4,
+				Timestamp: "2024-06-01T09:00:20Z",
+			},
+			Message{
+				SessionID: "vt1", Ordinal: 3,
+				Role:    "assistant",
+				Content: "done", ContentLength: 4,
+				Timestamp:  "2024-06-01T09:00:30Z",
+				HasToolUse: true,
+				ToolCalls: []ToolCall{
+					{SessionID: "vt1", ToolName: "Read",
+						Category: "Read"},
+					{SessionID: "vt1", ToolName: "Bash",
+						Category: "Bash"},
+					{SessionID: "vt1", ToolName: "Edit",
+						Category: "Edit"},
+				},
+			},
+		)
+		resp, err := d2.GetAnalyticsVelocity(ctx, baseFilter())
+		if err != nil {
+			t.Fatalf("GetAnalyticsVelocity: %v", err)
+		}
+		// 3 tool calls, active time = 3 gaps of 10s = 30s = 0.5 min
+		// 3 / 0.5 = 6.0
+		if resp.Overall.ToolCallsPerActiveMin != 6.0 {
+			t.Errorf("ToolCallsPerActiveMin = %f, want 6.0",
+				resp.Overall.ToolCallsPerActiveMin)
+		}
+	})
+
+	t.Run("ToolCallsPerActiveMinZero", func(t *testing.T) {
+		d2 := testDB(t)
+		insertSession(t, d2, "vt2", "proj", func(s *Session) {
+			s.StartedAt = Ptr("2024-06-01T09:00:00Z")
+			s.MessageCount = 2
+			s.Agent = "claude"
+		})
+		insertMessages(t, d2,
+			Message{
+				SessionID: "vt2", Ordinal: 0, Role: "user",
+				Content: "q", ContentLength: 1,
+				Timestamp: "2024-06-01T09:00:00Z",
+			},
+			Message{
+				SessionID: "vt2", Ordinal: 1,
+				Role:    "assistant",
+				Content: "a", ContentLength: 1,
+				Timestamp: "2024-06-01T09:00:10Z",
+			},
+		)
+		resp, err := d2.GetAnalyticsVelocity(ctx, baseFilter())
+		if err != nil {
+			t.Fatalf("GetAnalyticsVelocity: %v", err)
+		}
+		if resp.Overall.ToolCallsPerActiveMin != 0 {
+			t.Errorf("ToolCallsPerActiveMin = %f, want 0",
+				resp.Overall.ToolCallsPerActiveMin)
+		}
+	})
+
 	t.Run("NegativeDeltaClampsToZero", func(t *testing.T) {
 		d2 := testDB(t)
 		insertSession(t, d2, "v6", "proj", func(s *Session) {

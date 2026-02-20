@@ -84,6 +84,7 @@ function makeVelocity(): VelocityResponse {
       first_response_sec: { p50: 0, p90: 0 },
       msgs_per_active_min: 0,
       chars_per_active_min: 0,
+      tool_calls_per_active_min: 0,
     },
     by_agent: [],
     by_complexity: [],

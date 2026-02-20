@@ -235,6 +235,7 @@ export interface VelocityOverview {
   first_response_sec: Percentiles;
   msgs_per_active_min: number;
   chars_per_active_min: number;
+  tool_calls_per_active_min: number;
 }
 
 export interface VelocityBreakdown {
