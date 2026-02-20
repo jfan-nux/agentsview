@@ -48,7 +48,10 @@ export function registerShortcuts(
         ui.closePublishModal();
       } else if (ui.shortcutsModalOpen) {
         ui.closeShortcutsModal();
-      } else if (sessions.activeSessionId) {
+      } else if (
+        sessions.activeSessionId &&
+        !isInputFocused()
+      ) {
         sessions.deselectSession();
       }
       return;

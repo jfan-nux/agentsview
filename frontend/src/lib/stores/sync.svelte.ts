@@ -7,6 +7,22 @@ import type {
 } from "../api/types.js";
 
 const POLL_INTERVAL_MS = 10_000;
+const HASH_PREFIX_LEN = 7;
+
+/**
+ * Compare two commit hashes, tolerating short vs full SHA.
+ * Returns true when both are known and their prefixes differ.
+ */
+export function commitsDisagree(
+  a: string,
+  b: string,
+): boolean {
+  if (a === "unknown" || b === "unknown") return false;
+  if (a === b) return false;
+  const pa = a.slice(0, HASH_PREFIX_LEN);
+  const pb = b.slice(0, HASH_PREFIX_LEN);
+  return pa !== pb;
+}
 
 class SyncStore {
   syncing: boolean = $state(false);
@@ -62,10 +78,10 @@ class SyncStore {
   async loadVersion() {
     try {
       this.serverVersion = await api.getVersion();
-      this.versionMismatch =
-        this.buildCommit !== "unknown" &&
-        this.serverVersion.commit !== "unknown" &&
-        this.buildCommit !== this.serverVersion.commit;
+      this.versionMismatch = commitsDisagree(
+        this.buildCommit,
+        this.serverVersion.commit,
+      );
     } catch {
       // Non-fatal
     }

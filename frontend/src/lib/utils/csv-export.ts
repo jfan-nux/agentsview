@@ -19,7 +19,7 @@ interface AnalyticsData {
 function escapeCSV(value: string): string {
   // Prevent spreadsheet formula injection: prefix
   // dangerous leading characters with a single quote.
-  if (/^[=+\-@\t]/.test(value)) {
+  if (/^[=+\-@\t\r\n]/.test(value)) {
     value = "'" + value;
   }
   if (

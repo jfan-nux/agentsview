@@ -40,10 +40,53 @@ func main() {
 		case "serve":
 			runServe(os.Args[2:])
 			return
+		case "version", "--version", "-v":
+			fmt.Printf("agentsview %s (commit %s, built %s)\n",
+				version, commit, buildDate)
+			return
+		case "help", "--help", "-h":
+			printUsage()
+			return
 		}
 	}
 
 	runServe(os.Args[1:])
+}
+
+func printUsage() {
+	fmt.Printf(`agentsview %s - local web viewer for AI agent sessions
+
+Syncs Claude Code, Codex, and Gemini CLI session data into SQLite,
+serves an analytics dashboard and session browser via a local web UI.
+
+Usage:
+  agentsview [flags]          Start the server (default command)
+  agentsview serve [flags]    Start the server (explicit)
+  agentsview prune [flags]    Delete sessions matching filters
+  agentsview version          Show version information
+  agentsview help             Show this help
+
+Server flags:
+  -host string        Host to bind to (default "127.0.0.1")
+  -port int           Port to listen on (default 8080)
+  -no-browser         Don't open browser on startup
+
+Prune flags:
+  -project string     Sessions whose project contains this substring
+  -max-messages int   Sessions with at most N messages (default -1)
+  -before string      Sessions that ended before this date (YYYY-MM-DD)
+  -first-message str  Sessions whose first message starts with this text
+  -dry-run            Show what would be pruned without deleting
+  -yes                Skip confirmation prompt
+
+Environment variables:
+  CLAUDE_PROJECTS_DIR     Claude Code projects directory
+  CODEX_SESSIONS_DIR      Codex sessions directory
+  GEMINI_DIR              Gemini CLI directory
+  AGENT_VIEWER_DATA_DIR   Data directory (database, config)
+
+Data is stored in ~/.agentsview/ by default.
+`, version)
 }
 
 func runServe(args []string) {
@@ -91,7 +134,12 @@ func runServe(args []string) {
 }
 
 func mustLoadConfig(args []string) config.Config {
-	fs := flag.NewFlagSet("serve", flag.ExitOnError)
+	fs := flag.NewFlagSet("agentsview", flag.ExitOnError)
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(),
+			"Usage: agentsview [serve] [flags]\n\nFlags:\n")
+		fs.PrintDefaults()
+	}
 	config.RegisterServeFlags(fs)
 	if err := fs.Parse(args); err != nil {
 		log.Fatalf("parsing flags: %v", err)

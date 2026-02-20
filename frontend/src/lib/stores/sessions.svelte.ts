@@ -9,6 +9,7 @@ class SessionsStore {
   total: number = $state(0);
   loading: boolean = $state(false);
   projectFilter: string = $state("");
+  agentFilter: string = $state("");
   dateFilter: string = $state("");
   dateFromFilter: string = $state("");
   dateToFilter: string = $state("");
@@ -27,6 +28,7 @@ class SessionsStore {
 
   initFromParams(params: Record<string, string>) {
     const project = params["project"] ?? "";
+    const agent = params["agent"] ?? "";
     const date = params["date"] ?? "";
     const dateFrom = params["date_from"] ?? "";
     const dateTo = params["date_to"] ?? "";
@@ -34,6 +36,7 @@ class SessionsStore {
     const maxMsgs = parseInt(params["max_messages"] ?? "", 10);
 
     this.projectFilter = project;
+    this.agentFilter = agent;
     this.dateFilter = date;
     this.dateFromFilter = dateFrom;
     this.dateToFilter = dateTo;
@@ -51,6 +54,7 @@ class SessionsStore {
     try {
       const page = await api.listSessions({
         project: this.projectFilter || undefined,
+        agent: this.agentFilter || undefined,
         date: this.dateFilter || undefined,
         date_from: this.dateFromFilter || undefined,
         date_to: this.dateToFilter || undefined,
@@ -80,6 +84,7 @@ class SessionsStore {
     try {
       const page = await api.listSessions({
         project: this.projectFilter || undefined,
+        agent: this.agentFilter || undefined,
         date: this.dateFilter || undefined,
         date_from: this.dateFromFilter || undefined,
         date_to: this.dateToFilter || undefined,
@@ -138,6 +143,7 @@ class SessionsStore {
 
   setProjectFilter(project: string) {
     this.projectFilter = project;
+    this.agentFilter = "";
     this.dateFilter = "";
     this.dateFromFilter = "";
     this.dateToFilter = "";

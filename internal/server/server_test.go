@@ -54,7 +54,18 @@ func withWriteTimeout(d time.Duration) setupOption {
 	return func(c *config.Config) { c.WriteTimeout = d }
 }
 
-func setup(t *testing.T, opts ...setupOption) *testEnv {
+func setup(
+	t *testing.T,
+	opts ...setupOption,
+) *testEnv {
+	return setupWithServerOpts(t, nil, opts...)
+}
+
+func setupWithServerOpts(
+	t *testing.T,
+	srvOpts []server.Option,
+	opts ...setupOption,
+) *testEnv {
 	t.Helper()
 	dir := t.TempDir()
 	dbPath := filepath.Join(dir, "test.db")
@@ -87,7 +98,7 @@ func setup(t *testing.T, opts ...setupOption) *testEnv {
 	engine := sync.NewEngine(
 		database, claudeDir, codexDir, "", "test",
 	)
-	srv := server.New(cfg, database, engine)
+	srv := server.New(cfg, database, engine, srvOpts...)
 
 	return &testEnv{
 		srv:       srv,
@@ -1442,5 +1453,45 @@ func TestGetMessages_Limits(t *testing.T) {
 					tt.limitVal, len(resp.Messages), tt.wantCount)
 			}
 		})
+	}
+}
+
+func TestGetVersion(t *testing.T) {
+	v := server.VersionInfo{
+		Version:   "v1.2.3",
+		Commit:    "abc1234",
+		BuildDate: "2025-01-15T00:00:00Z",
+	}
+	te := setupWithServerOpts(t, []server.Option{
+		server.WithVersion(v),
+	})
+
+	w := te.get(t, "/api/v1/version")
+	assertStatus(t, w, http.StatusOK)
+
+	resp := decode[server.VersionInfo](t, w)
+	if resp.Version != "v1.2.3" {
+		t.Errorf("version = %q, want v1.2.3", resp.Version)
+	}
+	if resp.Commit != "abc1234" {
+		t.Errorf("commit = %q, want abc1234", resp.Commit)
+	}
+	if resp.BuildDate != "2025-01-15T00:00:00Z" {
+		t.Errorf(
+			"build_date = %q, want 2025-01-15T00:00:00Z",
+			resp.BuildDate,
+		)
+	}
+}
+
+func TestGetVersion_Default(t *testing.T) {
+	te := setup(t)
+
+	w := te.get(t, "/api/v1/version")
+	assertStatus(t, w, http.StatusOK)
+
+	resp := decode[server.VersionInfo](t, w)
+	if resp.Version != "" {
+		t.Errorf("version = %q, want empty", resp.Version)
 	}
 }

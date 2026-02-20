@@ -97,9 +97,9 @@ make vet        # go vet
 
 ## Git Workflow
 
-- **Never amend commits** - always create new commits for fixes
-- **Let the user handle branch management** - don't create, switch, or manage branches
+- **Commit every turn** - always commit your work at the end of each turn, no exceptions
+- **Never amend commits** - always create new commits for fixes, never use `--amend`
+- **Never change branches** - don't create, switch, or delete branches without explicit permission
 - Use conventional commit messages
 - Run tests before committing when applicable
-- **Commit after every turn** - always commit your work at the end of each turn
 - Never push or pull unless explicitly asked

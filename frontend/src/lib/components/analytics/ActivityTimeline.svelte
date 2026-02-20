@@ -249,10 +249,13 @@
             class="bar"
             class:empty={bar.value === 0}
             role="button"
-            tabindex="-1"
+            tabindex="0"
             onclick={() => handleBarClick(bar)}
             onkeydown={(e) => {
-              if (e.key === "Enter") handleBarClick(bar);
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handleBarClick(bar);
+              }
             }}
             onmouseenter={(e) => handleBarHover(e, bar)}
             onmouseleave={handleBarLeave}

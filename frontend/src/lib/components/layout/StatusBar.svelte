@@ -38,15 +38,18 @@
       >
         version mismatch - reload
       </button>
-      <span class="sep">&middot;</span>
     {/if}
     {#if progressText}
+      {#if sync.versionMismatch}<span class="sep">&middot;</span>{/if}
       <span class="sync-progress">{progressText}</span>
     {:else if sync.lastSync}
+      {#if sync.versionMismatch}<span class="sep">&middot;</span>{/if}
       <span>synced {formatRelativeTime(sync.lastSync)}</span>
     {/if}
     {#if sync.serverVersion}
-      <span class="sep">&middot;</span>
+      {#if sync.versionMismatch || progressText || sync.lastSync}
+        <span class="sep">&middot;</span>
+      {/if}
       <span class="version" title="Build: {sync.serverVersion.commit}">
         {sync.serverVersion.version}
       </span>

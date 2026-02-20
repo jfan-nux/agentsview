@@ -174,7 +174,7 @@
     padding: 12px;
     min-height: 200px;
     min-width: 0;
-    overflow: hidden;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
   }
