@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { untrack } from "svelte";
+  import { onDestroy, untrack } from "svelte";
   import { sessions } from "../../stores/sessions.svelte.js";
   import SessionItem from "./SessionItem.svelte";
   import { formatNumber } from "../../utils/format.js";
@@ -11,6 +11,7 @@
   let containerRef: HTMLDivElement | undefined = $state(undefined);
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
+  let scrollRaf: number | null = $state(null);
 
   let totalCount = $derived(
     Math.max(sessions.total, sessions.sessions.length),
@@ -90,23 +91,23 @@
     });
   });
 
-  // Load more when visible items approach loaded boundary.
+  // Throttle scroll position updates to one per frame.
   function handleScroll() {
     if (!containerRef) return;
-    scrollTop = containerRef.scrollTop;
-
-    const loaded = sessions.sessions.length;
-    if (loaded === 0) return;
-    if (sessions.loading) return;
-    if (!sessions.nextCursor) return;
-    if (endIndex < loaded - LOAD_AHEAD) return;
-
-    // Keep this untracked; loading state changes should not
-    // retrigger scroll-side effects.
-    untrack(() => {
-      void sessions.loadMore();
+    if (scrollRaf !== null) return;
+    scrollRaf = requestAnimationFrame(() => {
+      scrollRaf = null;
+      if (!containerRef) return;
+      scrollTop = containerRef.scrollTop;
     });
   }
+
+  onDestroy(() => {
+    if (scrollRaf !== null) {
+      cancelAnimationFrame(scrollRaf);
+      scrollRaf = null;
+    }
+  });
 </script>
 
 <div class="session-list-header">

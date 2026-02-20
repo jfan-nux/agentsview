@@ -13,16 +13,6 @@
     type DisplayItem,
   } from "../../utils/display-items.js";
 
-  interface Props {
-    onScrollMetrics?: (
-      offset: number,
-      totalHeight: number,
-      viewportHeight: number,
-    ) => void;
-  }
-
-  let { onScrollMetrics }: Props = $props();
-
   let containerRef: HTMLDivElement | undefined = $state(undefined);
   let scrollRaf: number | null = $state(null);
   let lastScrollRequest = 0;
@@ -111,11 +101,6 @@
           messages.loadOlder();
         }
       }
-      onScrollMetrics?.(
-        containerRef.scrollTop,
-        containerRef.scrollHeight,
-        containerRef.clientHeight,
-      );
     });
   }
 
@@ -145,8 +130,8 @@
       return;
     }
 
-    // TanStack's scrollToIndex may continuously re-seek in dynamic mode,
-    // causing visible "fight" after a minimap click. Use one offset seek.
+    // TanStack's scrollToIndex may continuously re-seek in dynamic mode.
+    // Use one offset seek to avoid visible scroll "fight."
     const offsetAndAlign = v.getOffsetForIndex(index, "start");
     if (offsetAndAlign) {
       const [offset] = offsetAndAlign;

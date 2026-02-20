@@ -4,16 +4,9 @@
   interface Props {
     sidebar: Snippet;
     content: Snippet;
-    minimap?: Snippet;
-    showMinimap?: boolean;
   }
 
-  let {
-    sidebar,
-    content,
-    minimap,
-    showMinimap = false,
-  }: Props = $props();
+  let { sidebar, content }: Props = $props();
 </script>
 
 <div class="layout">
@@ -23,11 +16,6 @@
   <main class="content">
     {@render content()}
   </main>
-  {#if showMinimap && minimap}
-    <aside class="minimap">
-      {@render minimap()}
-    </aside>
-  {/if}
 </div>
 
 <style>
@@ -52,12 +40,5 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-  }
-
-  .minimap {
-    width: 60px;
-    flex-shrink: 0;
-    border-left: 1px solid var(--border-default);
-    overflow: hidden;
   }
 </style>

@@ -5,7 +5,6 @@
   import StatusBar from "./lib/components/layout/StatusBar.svelte";
   import SessionList from "./lib/components/sidebar/SessionList.svelte";
   import MessageList from "./lib/components/content/MessageList.svelte";
-  import Minimap from "./lib/components/minimap/Minimap.svelte";
   import CommandPalette from "./lib/components/command-palette/CommandPalette.svelte";
   import ShortcutsModal from "./lib/components/modals/ShortcutsModal.svelte";
   import PublishModal from "./lib/components/modals/PublishModal.svelte";
@@ -24,9 +23,6 @@
         getDisplayItems: () => DisplayItem[];
       }
     | undefined = $state(undefined);
-  let scrollOffset: number = $state(0);
-  let scrollHeight: number = $state(0);
-  let clientHeight: number = $state(0);
 
   // Load active session's messages when selection changes.
   // Only track activeSessionId — untrack the rest to prevent
@@ -132,46 +128,21 @@
     };
   });
 
-  function handleScrollMetrics(
-    offset: number,
-    totalHeight: number,
-    viewportHeight: number,
-  ) {
-    scrollOffset = offset;
-    scrollHeight = totalHeight;
-    clientHeight = viewportHeight;
-  }
-
-  function handleMinimapClick(ordinal: number) {
-    messageListRef?.scrollToOrdinal(ordinal);
-  }
 </script>
 
 <AppHeader />
 
-<ThreeColumnLayout showMinimap={!!sessions.activeSessionId}>
+<ThreeColumnLayout>
   {#snippet sidebar()}
     <SessionList />
   {/snippet}
 
   {#snippet content()}
     {#if sessions.activeSessionId}
-      <MessageList
-        bind:this={messageListRef}
-        onScrollMetrics={handleScrollMetrics}
-      />
+      <MessageList bind:this={messageListRef} />
     {:else}
       <AnalyticsPage />
     {/if}
-  {/snippet}
-
-  {#snippet minimap()}
-    <Minimap
-      {scrollOffset}
-      {scrollHeight}
-      {clientHeight}
-      onClickIndex={handleMinimapClick}
-    />
   {/snippet}
 </ThreeColumnLayout>
 

@@ -1,13 +1,11 @@
 import * as api from "../api/client.js";
-import type { Message, MinimapEntry } from "../api/types.js";
+import type { Message } from "../api/types.js";
 
 const FIRST_BATCH = 1000;
 const BATCH_SIZE = 500;
-const MINIMAP_MAX_ENTRIES = 1200;
 
 class MessagesStore {
   messages: Message[] = $state([]);
-  minimap: MinimapEntry[] = $state([]);
   loading: boolean = $state(false);
   sessionId: string | null = $state(null);
   messageCount: number = $state(0);
@@ -16,6 +14,15 @@ class MessagesStore {
   private reloadPromise: Promise<void> | null = null;
   private reloadSessionId: string | null = null;
   private pendingReload: boolean = false;
+
+  // Non-reactive buffer for background-prefetched messages.
+  // Kept separate from the reactive `messages` array so that
+  // prefetching never triggers virtualizer churn. Merged into
+  // `messages` on demand (e.g. ensureOrdinalLoaded, loadOlder).
+  private prefetchBuffer: Message[] = [];
+  private prefetchDone: boolean = false;
+  private backgroundLoading: boolean = false;
+  private prefetchVersion: number = 0;
 
   async loadSession(id: string) {
     if (
@@ -27,13 +34,16 @@ class MessagesStore {
     this.sessionId = id;
     this.loading = true;
     this.messages = [];
-    this.minimap = [];
     this.messageCount = 0;
     this.hasOlder = false;
     this.loadingOlder = false;
     this.reloadPromise = null;
     this.reloadSessionId = null;
     this.pendingReload = false;
+    this.prefetchBuffer = [];
+    this.prefetchDone = false;
+    this.backgroundLoading = false;
+    this.prefetchVersion++;
 
     try {
       await this.loadProgressively(id);
@@ -49,7 +59,7 @@ class MessagesStore {
 
   reload(): Promise<void> {
     if (!this.sessionId) return Promise.resolve();
-    
+
     // Use the session ID of the current reload to ensure we don't return
     // a promise for a previous session.
     if (this.reloadPromise && this.reloadSessionId === this.sessionId) {
@@ -76,7 +86,6 @@ class MessagesStore {
 
   clear() {
     this.messages = [];
-    this.minimap = [];
     this.sessionId = null;
     this.loading = false;
     this.messageCount = 0;
@@ -85,30 +94,114 @@ class MessagesStore {
     this.reloadPromise = null;
     this.reloadSessionId = null;
     this.pendingReload = false;
+    this.prefetchBuffer = [];
+    this.prefetchDone = false;
+    this.backgroundLoading = false;
+    this.prefetchVersion++;
   }
 
   private async loadProgressively(id: string) {
-    const [firstRes, minimapRes, sess] = await Promise.all([
-      api.getMessages(id, {
-        limit: FIRST_BATCH,
-        direction: "desc",
-      }),
-      api.getMinimap(id, { max: MINIMAP_MAX_ENTRIES }),
-      api.getSession(id),
-    ]);
+    const firstRes = await api.getMessages(id, {
+      limit: FIRST_BATCH,
+      direction: "desc",
+    });
 
     if (this.sessionId !== id) return;
     // Keep in ascending ordinal order in store for simpler append
     // and stable ordinal math; UI handles newest-first presentation.
     this.messages = [...firstRes.messages].reverse();
-    this.minimap = minimapRes.entries ?? [];
-    this.messageCount = sess.message_count ?? this.messages.length;
+    const newest = this.messages[this.messages.length - 1];
+    this.messageCount = newest ? newest.ordinal + 1 : 0;
     const oldest = this.messages[0]?.ordinal;
     if (oldest !== undefined) {
       this.hasOlder = oldest > 0;
     } else {
       this.hasOlder = false;
     }
+
+    if (this.hasOlder) {
+      this.prefetchInBackground(id).catch(() => {});
+    }
+  }
+
+  private cancelPrefetch() {
+    this.prefetchVersion++;
+    this.prefetchBuffer = [];
+    this.prefetchDone = false;
+    this.backgroundLoading = false;
+  }
+
+  /**
+   * Fetches all older messages into a non-reactive buffer.
+   * Does not touch the reactive `messages` array — no
+   * virtualizer churn, no scroll disruption.
+   */
+  private async prefetchInBackground(id: string) {
+    const version = this.prefetchVersion;
+    this.backgroundLoading = true;
+    this.prefetchDone = false;
+    try {
+      const oldest = this.messages[0]?.ordinal;
+      if (oldest === undefined || oldest <= 0) return;
+
+      this.prefetchBuffer = [];
+      let from = 0;
+      for (;;) {
+        if (
+          this.sessionId !== id ||
+          this.prefetchVersion !== version
+        ) return;
+        const res = await api.getMessages(id, {
+          from,
+          limit: BATCH_SIZE,
+          direction: "asc",
+        });
+        if (
+          this.sessionId !== id ||
+          this.prefetchVersion !== version
+        ) return;
+        if (res.messages.length === 0) break;
+
+        for (const m of res.messages) {
+          if (m.ordinal < oldest) {
+            this.prefetchBuffer.push(m);
+          }
+        }
+
+        if (res.messages.length < BATCH_SIZE) break;
+        const last = res.messages[res.messages.length - 1]!;
+        if (last.ordinal >= oldest - 1) break;
+        from = last.ordinal + 1;
+      }
+
+      if (
+        this.sessionId === id &&
+        this.prefetchVersion === version
+      ) {
+        this.prefetchDone = true;
+      }
+    } finally {
+      if (
+        this.sessionId === id &&
+        this.prefetchVersion === version
+      ) {
+        this.backgroundLoading = false;
+      }
+    }
+  }
+
+  /**
+   * Merges the prefetch buffer into the reactive messages
+   * array. Called on-demand when the user needs older
+   * messages (search jump, scroll to top). Single reactive
+   * update keeps virtualizer impact minimal.
+   */
+  private flushPrefetchBuffer() {
+    if (this.prefetchBuffer.length === 0) return;
+    const buf = this.prefetchBuffer;
+    this.prefetchBuffer = [];
+    this.messages = [...buf, ...this.messages];
+    this.hasOlder = false;
   }
 
   private async loadFrom(id: string, from: number) {
@@ -133,6 +226,19 @@ class MessagesStore {
   }
 
   async loadOlder() {
+    // If the prefetch buffer has data, flush it instead of
+    // making a network request.
+    if (this.prefetchDone && this.prefetchBuffer.length > 0) {
+      this.flushPrefetchBuffer();
+      return;
+    }
+
+    // Prioritize interactive requests (scroll/jump) over
+    // background prefetch.
+    if (this.backgroundLoading) {
+      this.cancelPrefetch();
+    }
+
     if (
       !this.sessionId ||
       this.loadingOlder ||
@@ -169,22 +275,35 @@ class MessagesStore {
   }
 
   async ensureOrdinalLoaded(targetOrdinal: number) {
+    if (!this.sessionId || this.messages.length === 0) return;
+
+    // Check if already in range.
+    const oldest = this.messages[0]!.ordinal;
+    if (oldest <= targetOrdinal) return;
+
+    // If prefetch already has data, consume in one update.
+    if (this.prefetchDone && this.prefetchBuffer.length > 0) {
+      this.flushPrefetchBuffer();
+      return;
+    }
+
+    // Cancel background prefetch and load only what we need.
+    if (this.backgroundLoading) {
+      this.cancelPrefetch();
+    }
+
+    // Fallback: no prefetch running, load sequentially.
     for (;;) {
-      if (!this.sessionId || !this.hasOlder || this.messages.length === 0) {
-        return;
-      }
-      const oldest = this.messages[0]!.ordinal;
-      if (oldest <= targetOrdinal) {
-        return;
-      }
+      if (
+        !this.sessionId ||
+        !this.hasOlder ||
+        this.messages.length === 0
+      ) return;
+      const cur = this.messages[0]!.ordinal;
+      if (cur <= targetOrdinal) return;
       await this.loadOlder();
-      if (this.messages.length === 0) {
-        return;
-      }
-      // Safety: stop if we failed to move the lower bound.
-      if (this.messages[0]!.ordinal >= oldest) {
-        return;
-      }
+      if (this.messages.length === 0) return;
+      if (this.messages[0]!.ordinal >= cur) return;
     }
   }
 
@@ -197,19 +316,12 @@ class MessagesStore {
       const oldCount = this.messageCount;
       if (newCount === oldCount) return;
 
-      // Fast path: append only new messages and refresh a
-      // sampled minimap snapshot.
+      // Fast path: append only new messages.
       if (newCount > oldCount && this.messages.length > 0) {
         const lastOrdinal =
           this.messages[this.messages.length - 1]!.ordinal;
         await this.loadFrom(id, lastOrdinal + 1);
         if (this.sessionId !== id) return;
-
-        const minimapRes = await api.getMinimap(id, {
-          max: MINIMAP_MAX_ENTRIES,
-        });
-        if (this.sessionId !== id) return;
-        this.minimap = minimapRes.entries ?? [];
 
         // If incremental fetch fell out of sync, repair once.
         const newest = this.messages[this.messages.length - 1];

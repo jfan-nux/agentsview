@@ -9,18 +9,6 @@ test.describe("Navigation", () => {
     await sp.goto();
   });
 
-  test("minimap renders with non-zero canvas", async () => {
-    await sp.selectFirstSession();
-
-    const canvas = sp.page.locator("canvas");
-    await expect(canvas).toBeVisible({ timeout: 10_000 });
-
-    const box = await canvas.boundingBox();
-    expect(box).not.toBeNull();
-    expect(box!.width).toBeGreaterThan(0);
-    expect(box!.height).toBeGreaterThan(0);
-  });
-
   test("keyboard ] navigates to next session", async () => {
     await sp.sessionItems.first().click();
     await expect(sp.sessionItems.first()).toHaveClass(/active/);
