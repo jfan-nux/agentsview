@@ -20,6 +20,7 @@ import type {
   HourOfWeekResponse,
   SessionShapeResponse,
   VelocityResponse,
+  ToolsAnalyticsResponse,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -373,5 +374,16 @@ export function getAnalyticsVelocity(
 ): Promise<VelocityResponse> {
   return fetchJSON(
     `/analytics/velocity${analyticsQuery(params)}`,
+  );
+}
+
+export function getAnalyticsTools(
+  params: AnalyticsParams & { project?: string },
+): Promise<ToolsAnalyticsResponse> {
+  const { project, ...base } = params;
+  const extra: Record<string, string> = {};
+  if (project) extra["project"] = project;
+  return fetchJSON(
+    `/analytics/tools${analyticsQuery(base, extra)}`,
   );
 }

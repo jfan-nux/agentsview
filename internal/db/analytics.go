@@ -324,6 +324,8 @@ type ActivityEntry struct {
 	Messages          int            `json:"messages"`
 	UserMessages      int            `json:"user_messages"`
 	AssistantMessages int            `json:"assistant_messages"`
+	ToolCalls         int            `json:"tool_calls"`
+	ThinkingMessages  int            `json:"thinking_messages"`
 	ByAgent           map[string]int `json:"by_agent"`
 }
 
@@ -368,11 +370,12 @@ func (db *DB) GetAnalyticsActivity(
 	dateCol := "COALESCE(s.started_at, s.created_at)"
 	where, args := f.buildWhere(dateCol)
 
-	query := `SELECT ` + dateCol + `, s.agent, s.id, m.role, COUNT(*)
+	query := `SELECT ` + dateCol + `, s.agent, s.id,
+		m.role, m.has_thinking, COUNT(*)
 		FROM sessions s
 		LEFT JOIN messages m ON m.session_id = s.id
 		WHERE ` + where + `
-		GROUP BY s.id, m.role`
+		GROUP BY s.id, m.role, m.has_thinking`
 
 	rows, err := db.reader.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -383,13 +386,16 @@ func (db *DB) GetAnalyticsActivity(
 
 	buckets := make(map[string]*ActivityEntry)
 	sessionSeen := make(map[string]string) // session_id -> bucket
+	var sessionIDs []string
 
 	for rows.Next() {
 		var ts, agent, sid string
 		var role *string
+		var hasThinking *bool
 		var count int
 		if err := rows.Scan(
-			&ts, &agent, &sid, &role, &count,
+			&ts, &agent, &sid, &role,
+			&hasThinking, &count,
 		); err != nil {
 			return ActivityResponse{},
 				fmt.Errorf("scanning activity row: %w", err)
@@ -413,6 +419,7 @@ func (db *DB) GetAnalyticsActivity(
 		// Count this session once per bucket
 		if _, seen := sessionSeen[sid]; !seen {
 			sessionSeen[sid] = bucket
+			sessionIDs = append(sessionIDs, sid)
 			entry.Sessions++
 		}
 
@@ -425,11 +432,27 @@ func (db *DB) GetAnalyticsActivity(
 			case "assistant":
 				entry.AssistantMessages += count
 			}
+			if hasThinking != nil && *hasThinking {
+				entry.ThinkingMessages += count
+			}
 		}
 	}
 	if err := rows.Err(); err != nil {
 		return ActivityResponse{},
 			fmt.Errorf("iterating activity rows: %w", err)
+	}
+
+	// Merge tool_call counts per session into buckets.
+	if len(sessionIDs) > 0 {
+		err = queryChunked(sessionIDs,
+			func(chunk []string) error {
+				return db.mergeActivityToolCalls(
+					ctx, chunk, sessionSeen, buckets,
+				)
+			})
+		if err != nil {
+			return ActivityResponse{}, err
+		}
 	}
 
 	// Sort by date
@@ -445,6 +468,43 @@ func (db *DB) GetAnalyticsActivity(
 		Granularity: granularity,
 		Series:      series,
 	}, nil
+}
+
+// mergeActivityToolCalls queries tool_calls for a chunk of
+// session IDs and adds counts to the matching activity buckets.
+func (db *DB) mergeActivityToolCalls(
+	ctx context.Context,
+	chunk []string,
+	sessionBucket map[string]string,
+	buckets map[string]*ActivityEntry,
+) error {
+	ph, args := inPlaceholders(chunk)
+	q := `SELECT session_id, COUNT(*)
+		FROM tool_calls
+		WHERE session_id IN ` + ph + `
+		GROUP BY session_id`
+	rows, err := db.reader.QueryContext(ctx, q, args...)
+	if err != nil {
+		return fmt.Errorf(
+			"querying activity tool_calls: %w", err,
+		)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var sid string
+		var count int
+		if err := rows.Scan(&sid, &count); err != nil {
+			return fmt.Errorf(
+				"scanning activity tool_call: %w", err,
+			)
+		}
+		bucket := sessionBucket[sid]
+		if entry, ok := buckets[bucket]; ok {
+			entry.ToolCalls += count
+		}
+	}
+	return rows.Err()
 }
 
 // --- Heatmap ---
@@ -1054,6 +1114,239 @@ func (db *DB) queryAutonomyChunk(
 		}
 	}
 	return rows.Err()
+}
+
+// --- Tools ---
+
+// ToolCategoryCount holds a count and percentage for one tool
+// category.
+type ToolCategoryCount struct {
+	Category string  `json:"category"`
+	Count    int     `json:"count"`
+	Pct      float64 `json:"pct"`
+}
+
+// ToolAgentBreakdown holds tool usage breakdown for one agent.
+type ToolAgentBreakdown struct {
+	Agent      string              `json:"agent"`
+	Total      int                 `json:"total"`
+	Categories []ToolCategoryCount `json:"categories"`
+}
+
+// ToolTrendEntry holds tool call counts for one time bucket.
+type ToolTrendEntry struct {
+	Date  string         `json:"date"`
+	ByCat map[string]int `json:"by_category"`
+}
+
+// ToolsAnalyticsResponse wraps tool usage analytics.
+type ToolsAnalyticsResponse struct {
+	TotalCalls int                  `json:"total_calls"`
+	ByCategory []ToolCategoryCount  `json:"by_category"`
+	ByAgent    []ToolAgentBreakdown `json:"by_agent"`
+	Trend      []ToolTrendEntry     `json:"trend"`
+}
+
+// GetAnalyticsTools returns tool usage analytics aggregated
+// from the tool_calls table.
+func (db *DB) GetAnalyticsTools(
+	ctx context.Context, f AnalyticsFilter, project string,
+) (ToolsAnalyticsResponse, error) {
+	loc := f.location()
+	dateCol := "COALESCE(started_at, created_at)"
+	where, args := f.buildWhere(dateCol)
+
+	if project != "" {
+		where += " AND project = ?"
+		args = append(args, project)
+	}
+
+	// Fetch filtered session IDs and their metadata.
+	sessQ := `SELECT id, ` + dateCol + `, agent
+		FROM sessions WHERE ` + where
+
+	sessRows, err := db.reader.QueryContext(ctx, sessQ, args...)
+	if err != nil {
+		return ToolsAnalyticsResponse{},
+			fmt.Errorf("querying tool sessions: %w", err)
+	}
+	defer sessRows.Close()
+
+	type sessInfo struct {
+		date  string
+		agent string
+	}
+	sessionMap := make(map[string]sessInfo)
+	var sessionIDs []string
+
+	for sessRows.Next() {
+		var id, ts, agent string
+		if err := sessRows.Scan(&id, &ts, &agent); err != nil {
+			return ToolsAnalyticsResponse{},
+				fmt.Errorf("scanning tool session: %w", err)
+		}
+		date := localDate(ts, loc)
+		if !inDateRange(date, f.From, f.To) {
+			continue
+		}
+		sessionMap[id] = sessInfo{date: date, agent: agent}
+		sessionIDs = append(sessionIDs, id)
+	}
+	if err := sessRows.Err(); err != nil {
+		return ToolsAnalyticsResponse{},
+			fmt.Errorf("iterating tool sessions: %w", err)
+	}
+
+	resp := ToolsAnalyticsResponse{
+		ByCategory: []ToolCategoryCount{},
+		ByAgent:    []ToolAgentBreakdown{},
+		Trend:      []ToolTrendEntry{},
+	}
+
+	if len(sessionIDs) == 0 {
+		return resp, nil
+	}
+
+	// Query tool_calls for filtered sessions (chunked).
+	type toolRow struct {
+		sessionID string
+		category  string
+	}
+	var toolRows []toolRow
+
+	err = queryChunked(sessionIDs,
+		func(chunk []string) error {
+			ph, chunkArgs := inPlaceholders(chunk)
+			q := `SELECT session_id, category
+				FROM tool_calls
+				WHERE session_id IN ` + ph
+			rows, qErr := db.reader.QueryContext(
+				ctx, q, chunkArgs...,
+			)
+			if qErr != nil {
+				return fmt.Errorf(
+					"querying tool_calls: %w", qErr,
+				)
+			}
+			defer rows.Close()
+			for rows.Next() {
+				var sid, cat string
+				if err := rows.Scan(&sid, &cat); err != nil {
+					return fmt.Errorf(
+						"scanning tool_call: %w", err,
+					)
+				}
+				toolRows = append(toolRows, toolRow{
+					sessionID: sid, category: cat,
+				})
+			}
+			return rows.Err()
+		})
+	if err != nil {
+		return ToolsAnalyticsResponse{}, err
+	}
+
+	if len(toolRows) == 0 {
+		return resp, nil
+	}
+
+	// Aggregate in Go.
+	catCounts := make(map[string]int)
+	agentCats := make(map[string]map[string]int)    // agent → cat → count
+	trendBuckets := make(map[string]map[string]int) // week → cat → count
+
+	for _, tr := range toolRows {
+		info := sessionMap[tr.sessionID]
+		catCounts[tr.category]++
+
+		if agentCats[info.agent] == nil {
+			agentCats[info.agent] = make(map[string]int)
+		}
+		agentCats[info.agent][tr.category]++
+
+		week := bucketDate(info.date, "week")
+		if trendBuckets[week] == nil {
+			trendBuckets[week] = make(map[string]int)
+		}
+		trendBuckets[week][tr.category]++
+	}
+
+	resp.TotalCalls = len(toolRows)
+
+	// Build ByCategory sorted by count desc.
+	resp.ByCategory = make(
+		[]ToolCategoryCount, 0, len(catCounts),
+	)
+	for cat, count := range catCounts {
+		pct := math.Round(
+			float64(count)/float64(resp.TotalCalls)*1000,
+		) / 10
+		resp.ByCategory = append(resp.ByCategory,
+			ToolCategoryCount{
+				Category: cat, Count: count, Pct: pct,
+			})
+	}
+	sort.Slice(resp.ByCategory, func(i, j int) bool {
+		if resp.ByCategory[i].Count != resp.ByCategory[j].Count {
+			return resp.ByCategory[i].Count > resp.ByCategory[j].Count
+		}
+		return resp.ByCategory[i].Category < resp.ByCategory[j].Category
+	})
+
+	// Build ByAgent sorted alphabetically.
+	agentKeys := make([]string, 0, len(agentCats))
+	for k := range agentCats {
+		agentKeys = append(agentKeys, k)
+	}
+	sort.Strings(agentKeys)
+	resp.ByAgent = make(
+		[]ToolAgentBreakdown, 0, len(agentKeys),
+	)
+	for _, agent := range agentKeys {
+		cats := agentCats[agent]
+		total := 0
+		for _, c := range cats {
+			total += c
+		}
+		catList := make(
+			[]ToolCategoryCount, 0, len(cats),
+		)
+		for cat, count := range cats {
+			pct := math.Round(
+				float64(count)/float64(total)*1000,
+			) / 10
+			catList = append(catList, ToolCategoryCount{
+				Category: cat, Count: count, Pct: pct,
+			})
+		}
+		sort.Slice(catList, func(i, j int) bool {
+			if catList[i].Count != catList[j].Count {
+				return catList[i].Count > catList[j].Count
+			}
+			return catList[i].Category < catList[j].Category
+		})
+		resp.ByAgent = append(resp.ByAgent,
+			ToolAgentBreakdown{
+				Agent:      agent,
+				Total:      total,
+				Categories: catList,
+			})
+	}
+
+	// Build Trend sorted by date.
+	resp.Trend = make(
+		[]ToolTrendEntry, 0, len(trendBuckets),
+	)
+	for week, cats := range trendBuckets {
+		resp.Trend = append(resp.Trend, ToolTrendEntry{
+			Date: week, ByCat: cats,
+		})
+	}
+	sort.Slice(resp.Trend, func(i, j int) bool {
+		return resp.Trend[i].Date < resp.Trend[j].Date
+	})
+
+	return resp, nil
 }
 
 // --- Velocity ---

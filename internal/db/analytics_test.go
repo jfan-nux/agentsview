@@ -606,6 +606,10 @@ func TestAnalyticsCanceledContext(t *testing.T) {
 			_, err := d.GetAnalyticsVelocity(ctx, f)
 			return err
 		}},
+		{"Tools", func() error {
+			_, err := d.GetAnalyticsTools(ctx, f, "")
+			return err
+		}},
 	}
 
 	for _, tt := range tests {
@@ -1344,6 +1348,248 @@ func TestPercentileFloat(t *testing.T) {
 					tt.sorted, tt.pct, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestGetAnalyticsTools(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+
+	t.Run("EmptyDB", func(t *testing.T) {
+		resp, err := d.GetAnalyticsTools(
+			ctx, baseFilter(), "",
+		)
+		if err != nil {
+			t.Fatalf("GetAnalyticsTools: %v", err)
+		}
+		if resp.TotalCalls != 0 {
+			t.Errorf("TotalCalls = %d, want 0",
+				resp.TotalCalls)
+		}
+		if len(resp.ByCategory) != 0 {
+			t.Errorf("len(ByCategory) = %d, want 0",
+				len(resp.ByCategory))
+		}
+	})
+
+	// Seed sessions with tool_calls.
+	insertSession(t, d, "t1", "alpha", func(s *Session) {
+		s.StartedAt = Ptr("2024-06-01T09:00:00Z")
+		s.MessageCount = 3
+		s.Agent = "claude"
+	})
+	m1 := asstMsg("t1", 0, "[Read: a.go]")
+	m1.HasToolUse = true
+	m1.ToolCalls = []ToolCall{
+		{SessionID: "t1", ToolName: "Read", Category: "Read"},
+		{SessionID: "t1", ToolName: "Read", Category: "Read"},
+	}
+	m2 := asstMsg("t1", 1, "[Bash: ls]")
+	m2.HasToolUse = true
+	m2.ToolCalls = []ToolCall{
+		{SessionID: "t1", ToolName: "Bash", Category: "Bash"},
+	}
+	m3 := asstMsg("t1", 2, "[Edit: b.go]")
+	m3.HasToolUse = true
+	m3.ToolCalls = []ToolCall{
+		{SessionID: "t1", ToolName: "Edit", Category: "Edit"},
+	}
+	insertMessages(t, d, m1, m2, m3)
+
+	insertSession(t, d, "t2", "beta", func(s *Session) {
+		s.StartedAt = Ptr("2024-06-02T10:00:00Z")
+		s.MessageCount = 1
+		s.Agent = "codex"
+	})
+	m4 := asstMsg("t2", 0, "[Read: c.go]")
+	m4.HasToolUse = true
+	m4.ToolCalls = []ToolCall{
+		{SessionID: "t2", ToolName: "Read", Category: "Read"},
+		{SessionID: "t2", ToolName: "Grep", Category: "Grep"},
+	}
+	insertMessages(t, d, m4)
+
+	t.Run("TotalCalls", func(t *testing.T) {
+		resp, err := d.GetAnalyticsTools(
+			ctx, baseFilter(), "",
+		)
+		if err != nil {
+			t.Fatalf("GetAnalyticsTools: %v", err)
+		}
+		// 2 Read + 1 Bash + 1 Edit + 1 Read + 1 Grep = 6
+		if resp.TotalCalls != 6 {
+			t.Errorf("TotalCalls = %d, want 6",
+				resp.TotalCalls)
+		}
+	})
+
+	t.Run("ByCategory", func(t *testing.T) {
+		resp, err := d.GetAnalyticsTools(
+			ctx, baseFilter(), "",
+		)
+		if err != nil {
+			t.Fatalf("GetAnalyticsTools: %v", err)
+		}
+		catMap := make(map[string]int)
+		for _, c := range resp.ByCategory {
+			catMap[c.Category] = c.Count
+		}
+		if catMap["Read"] != 3 {
+			t.Errorf("Read = %d, want 3", catMap["Read"])
+		}
+		if catMap["Bash"] != 1 {
+			t.Errorf("Bash = %d, want 1", catMap["Bash"])
+		}
+		if catMap["Edit"] != 1 {
+			t.Errorf("Edit = %d, want 1", catMap["Edit"])
+		}
+		if catMap["Grep"] != 1 {
+			t.Errorf("Grep = %d, want 1", catMap["Grep"])
+		}
+		// Sorted by count desc: Read first
+		if resp.ByCategory[0].Category != "Read" {
+			t.Errorf("first category = %q, want Read",
+				resp.ByCategory[0].Category)
+		}
+	})
+
+	t.Run("ByCategoryPct", func(t *testing.T) {
+		resp, err := d.GetAnalyticsTools(
+			ctx, baseFilter(), "",
+		)
+		if err != nil {
+			t.Fatalf("GetAnalyticsTools: %v", err)
+		}
+		// Read: 3/6 = 50%
+		if resp.ByCategory[0].Pct != 50.0 {
+			t.Errorf("Read pct = %f, want 50.0",
+				resp.ByCategory[0].Pct)
+		}
+	})
+
+	t.Run("ByAgent", func(t *testing.T) {
+		resp, err := d.GetAnalyticsTools(
+			ctx, baseFilter(), "",
+		)
+		if err != nil {
+			t.Fatalf("GetAnalyticsTools: %v", err)
+		}
+		if len(resp.ByAgent) != 2 {
+			t.Fatalf("len(ByAgent) = %d, want 2",
+				len(resp.ByAgent))
+		}
+		// Alphabetical: claude, codex
+		if resp.ByAgent[0].Agent != "claude" {
+			t.Errorf("first agent = %q, want claude",
+				resp.ByAgent[0].Agent)
+		}
+		if resp.ByAgent[0].Total != 4 {
+			t.Errorf("claude total = %d, want 4",
+				resp.ByAgent[0].Total)
+		}
+		if resp.ByAgent[1].Agent != "codex" {
+			t.Errorf("second agent = %q, want codex",
+				resp.ByAgent[1].Agent)
+		}
+		if resp.ByAgent[1].Total != 2 {
+			t.Errorf("codex total = %d, want 2",
+				resp.ByAgent[1].Total)
+		}
+	})
+
+	t.Run("Trend", func(t *testing.T) {
+		resp, err := d.GetAnalyticsTools(
+			ctx, baseFilter(), "",
+		)
+		if err != nil {
+			t.Fatalf("GetAnalyticsTools: %v", err)
+		}
+		// 2024-06-01 is Saturday, 2024-06-02 is Sunday.
+		// Both in same ISO week (May 27 week start).
+		// But 2024-06-03 is Monday, different week.
+		// So trend should have 1 entry (week of May 27).
+		if len(resp.Trend) != 1 {
+			t.Fatalf("len(Trend) = %d, want 1",
+				len(resp.Trend))
+		}
+		total := 0
+		for _, v := range resp.Trend[0].ByCat {
+			total += v
+		}
+		if total != 6 {
+			t.Errorf("week total = %d, want 6", total)
+		}
+	})
+
+	t.Run("ProjectFilter", func(t *testing.T) {
+		resp, err := d.GetAnalyticsTools(
+			ctx, baseFilter(), "alpha",
+		)
+		if err != nil {
+			t.Fatalf("GetAnalyticsTools: %v", err)
+		}
+		if resp.TotalCalls != 4 {
+			t.Errorf("TotalCalls = %d, want 4",
+				resp.TotalCalls)
+		}
+	})
+
+	t.Run("EmptyDateRange", func(t *testing.T) {
+		resp, err := d.GetAnalyticsTools(
+			ctx, emptyFilter(), "",
+		)
+		if err != nil {
+			t.Fatalf("GetAnalyticsTools: %v", err)
+		}
+		if resp.TotalCalls != 0 {
+			t.Errorf("TotalCalls = %d, want 0",
+				resp.TotalCalls)
+		}
+	})
+}
+
+func TestGetAnalyticsToolsCanceled(t *testing.T) {
+	d := testDB(t)
+	ctx := canceledCtx()
+	_, err := d.GetAnalyticsTools(ctx, baseFilter(), "")
+	requireCanceledErr(t, err)
+}
+
+func TestActivityToolAndThinkingCounts(t *testing.T) {
+	d := testDB(t)
+	ctx := context.Background()
+
+	insertSession(t, d, "at1", "proj", func(s *Session) {
+		s.StartedAt = Ptr("2024-06-01T09:00:00Z")
+		s.MessageCount = 3
+		s.Agent = "claude"
+	})
+
+	// User message, assistant with thinking, assistant with tool
+	u := userMsg("at1", 0, "hello")
+	a1 := asstMsg("at1", 1, "thinking response")
+	a1.HasThinking = true
+	a2 := asstMsg("at1", 2, "[Read: a.go]")
+	a2.HasToolUse = true
+	a2.ToolCalls = []ToolCall{
+		{SessionID: "at1", ToolName: "Read", Category: "Read"},
+		{SessionID: "at1", ToolName: "Bash", Category: "Bash"},
+	}
+	insertMessages(t, d, u, a1, a2)
+
+	resp := mustActivity(t, d, ctx, baseFilter(), "day")
+	if len(resp.Series) == 0 {
+		t.Fatal("expected non-empty series")
+	}
+
+	entry := resp.Series[0]
+	if entry.ThinkingMessages != 1 {
+		t.Errorf("ThinkingMessages = %d, want 1",
+			entry.ThinkingMessages)
+	}
+	if entry.ToolCalls != 2 {
+		t.Errorf("ToolCalls = %d, want 2",
+			entry.ToolCalls)
 	}
 }
 

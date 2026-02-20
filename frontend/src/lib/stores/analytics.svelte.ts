@@ -6,6 +6,7 @@ import type {
   HourOfWeekResponse,
   SessionShapeResponse,
   VelocityResponse,
+  ToolsAnalyticsResponse,
 } from "../api/types.js";
 import {
   getAnalyticsSummary,
@@ -15,6 +16,7 @@ import {
   getAnalyticsHourOfWeek,
   getAnalyticsSessionShape,
   getAnalyticsVelocity,
+  getAnalyticsTools,
   type AnalyticsParams,
 } from "../api/client.js";
 import { router } from "./router.svelte.js";
@@ -43,7 +45,8 @@ type Panel =
   | "projects"
   | "hourOfWeek"
   | "sessionShape"
-  | "velocity";
+  | "velocity"
+  | "tools";
 
 class AnalyticsStore {
   from: string = $state(daysAgo(30));
@@ -59,6 +62,7 @@ class AnalyticsStore {
   hourOfWeek = $state<HourOfWeekResponse | null>(null);
   sessionShape = $state<SessionShapeResponse | null>(null);
   velocity = $state<VelocityResponse | null>(null);
+  tools = $state<ToolsAnalyticsResponse | null>(null);
 
   loading = $state({
     summary: false,
@@ -68,6 +72,7 @@ class AnalyticsStore {
     hourOfWeek: false,
     sessionShape: false,
     velocity: false,
+    tools: false,
   });
 
   errors = $state<Record<Panel, string | null>>({
@@ -78,6 +83,7 @@ class AnalyticsStore {
     hourOfWeek: null,
     sessionShape: null,
     velocity: null,
+    tools: null,
   });
 
   // Per-panel version counters to avoid cross-panel conflicts.
@@ -89,6 +95,7 @@ class AnalyticsStore {
     hourOfWeek: 0,
     sessionShape: 0,
     velocity: 0,
+    tools: 0,
   };
 
   private baseParams(): AnalyticsParams {
@@ -122,6 +129,7 @@ class AnalyticsStore {
       this.fetchHourOfWeek(),
       this.fetchSessionShape(),
       this.fetchVelocity(),
+      this.fetchTools(),
     ]);
   }
 
@@ -286,6 +294,29 @@ class AnalyticsStore {
     }
   }
 
+  async fetchTools() {
+    const v = ++this.versions.tools;
+    this.loading.tools = true;
+    this.errors.tools = null;
+    try {
+      const data = await getAnalyticsTools(
+        this.filterParams(),
+      );
+      if (this.versions.tools === v) {
+        this.tools = data;
+      }
+    } catch (e) {
+      if (this.versions.tools === v) {
+        this.errors.tools =
+          e instanceof Error ? e.message : "Failed to load";
+      }
+    } finally {
+      if (this.versions.tools === v) {
+        this.loading.tools = false;
+      }
+    }
+  }
+
   setDateRange(from: string, to: string) {
     this.from = from;
     this.to = to;
@@ -305,6 +336,7 @@ class AnalyticsStore {
     this.fetchProjects();
     this.fetchSessionShape();
     this.fetchVelocity();
+    this.fetchTools();
   }
 
   setGranularity(g: string) {

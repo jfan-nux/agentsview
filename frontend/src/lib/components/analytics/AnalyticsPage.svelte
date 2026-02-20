@@ -8,6 +8,7 @@
   import HourOfWeekHeatmap from "./HourOfWeekHeatmap.svelte";
   import SessionShape from "./SessionShape.svelte";
   import VelocityMetrics from "./VelocityMetrics.svelte";
+  import ToolUsage from "./ToolUsage.svelte";
   import { analytics } from "../../stores/analytics.svelte.js";
   import { router } from "../../stores/router.svelte.js";
 
@@ -48,6 +49,10 @@
 
       <div class="chart-panel wide">
         <VelocityMetrics />
+      </div>
+
+      <div class="chart-panel wide">
+        <ToolUsage />
       </div>
     </div>
   </div>

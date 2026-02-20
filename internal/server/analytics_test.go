@@ -13,7 +13,8 @@ import (
 const analyticsRange = "?from=2024-06-01&to=2024-06-03"
 
 // seedAnalyticsEnv populates the test env with sessions and
-// messages suitable for analytics endpoint tests.
+// messages suitable for analytics endpoint tests. Some messages
+// include tool_calls for tool analytics testing.
 func seedAnalyticsEnv(t *testing.T, te *testEnv) {
 	t.Helper()
 
@@ -27,12 +28,27 @@ func seedAnalyticsEnv(t *testing.T, te *testEnv) {
 		{"b1", "beta", "claude", "2024-06-02T10:00:00Z", 30},
 	} {
 		started := s.started
-		te.seedSessionWithMessages(t, s.id, s.project, s.msgs,
+		te.seedSession(t, s.id, s.project, s.msgs,
 			func(sess *db.Session) {
 				sess.Agent = s.agent
 				sess.StartedAt = &started
 				sess.EndedAt = &started
 				sess.FirstMessage = dbtest.Ptr("Hello")
+			},
+		)
+		te.seedMessages(t, s.id, s.msgs,
+			func(i int, m *db.Message) {
+				// Add tool calls on every other assistant msg
+				if m.Role == "assistant" && i%4 == 1 {
+					m.HasToolUse = true
+					m.ToolCalls = []db.ToolCall{
+						{
+							SessionID: s.id,
+							ToolName:  "Read",
+							Category:  "Read",
+						},
+					}
+				}
 			},
 		)
 	}
@@ -129,6 +145,7 @@ func TestAnalyticsErrorRedaction(t *testing.T) {
 		"/api/v1/analytics/hour-of-week" + analyticsRange,
 		"/api/v1/analytics/sessions" + analyticsRange,
 		"/api/v1/analytics/velocity" + analyticsRange,
+		"/api/v1/analytics/tools" + analyticsRange,
 	}
 	for _, ep := range endpoints {
 		t.Run(ep, func(t *testing.T) {
@@ -379,6 +396,52 @@ func TestAnalyticsVelocity(t *testing.T) {
 
 	t.Run("DefaultParams", func(t *testing.T) {
 		w := te.get(t, "/api/v1/analytics/velocity")
+		assertStatus(t, w, http.StatusOK)
+	})
+}
+
+func TestAnalyticsTools(t *testing.T) {
+	te := setup(t)
+	seedAnalyticsEnv(t, te)
+
+	t.Run("OK", func(t *testing.T) {
+		w := te.get(t,
+			"/api/v1/analytics/tools"+analyticsRange+
+				"&timezone=UTC")
+		assertStatus(t, w, http.StatusOK)
+
+		resp := decode[db.ToolsAnalyticsResponse](t, w)
+		if resp.TotalCalls == 0 {
+			t.Error("expected non-zero TotalCalls")
+		}
+		if len(resp.ByCategory) == 0 {
+			t.Error("expected non-empty ByCategory")
+		}
+		if len(resp.ByAgent) == 0 {
+			t.Error("expected non-empty ByAgent")
+		}
+	})
+
+	t.Run("WithProjectFilter", func(t *testing.T) {
+		w := te.get(t,
+			"/api/v1/analytics/tools"+analyticsRange+
+				"&project=alpha&timezone=UTC")
+		assertStatus(t, w, http.StatusOK)
+
+		resp := decode[db.ToolsAnalyticsResponse](t, w)
+		if resp.TotalCalls == 0 {
+			t.Error("expected non-zero TotalCalls for alpha")
+		}
+	})
+
+	t.Run("InvalidTimezone", func(t *testing.T) {
+		w := te.get(t,
+			"/api/v1/analytics/tools?timezone=Fake/Zone")
+		assertStatus(t, w, http.StatusBadRequest)
+	})
+
+	t.Run("DefaultDateRange", func(t *testing.T) {
+		w := te.get(t, "/api/v1/analytics/tools")
 		assertStatus(t, w, http.StatusOK)
 	})
 }

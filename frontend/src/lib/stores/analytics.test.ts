@@ -15,6 +15,7 @@ import type {
   HourOfWeekResponse,
   SessionShapeResponse,
   VelocityResponse,
+  ToolsAnalyticsResponse,
 } from "../api/types.js";
 
 vi.mock("../api/client.js", () => ({
@@ -25,6 +26,7 @@ vi.mock("../api/client.js", () => ({
   getAnalyticsHourOfWeek: vi.fn(),
   getAnalyticsSessionShape: vi.fn(),
   getAnalyticsVelocity: vi.fn(),
+  getAnalyticsTools: vi.fn(),
 }));
 
 vi.mock("./router.svelte.js", () => ({
@@ -88,6 +90,15 @@ function makeVelocity(): VelocityResponse {
   };
 }
 
+function makeTools(): ToolsAnalyticsResponse {
+  return {
+    total_calls: 0,
+    by_category: [],
+    by_agent: [],
+    trend: [],
+  };
+}
+
 function mockAllAPIs() {
   vi.mocked(api.getAnalyticsSummary).mockResolvedValue(
     makeSummary(),
@@ -109,6 +120,9 @@ function mockAllAPIs() {
   );
   vi.mocked(api.getAnalyticsVelocity).mockResolvedValue(
     makeVelocity(),
+  );
+  vi.mocked(api.getAnalyticsTools).mockResolvedValue(
+    makeTools(),
   );
 }
 
@@ -170,6 +184,7 @@ describe("AnalyticsStore.selectDate", () => {
     expect(api.getAnalyticsProjects).toHaveBeenCalledTimes(1);
     expect(api.getAnalyticsSessionShape).toHaveBeenCalledTimes(1);
     expect(api.getAnalyticsVelocity).toHaveBeenCalledTimes(1);
+    expect(api.getAnalyticsTools).toHaveBeenCalledTimes(1);
     expect(api.getAnalyticsHeatmap).not.toHaveBeenCalled();
     expect(api.getAnalyticsHourOfWeek).not.toHaveBeenCalled();
   });
@@ -230,6 +245,7 @@ describe("AnalyticsStore.setDateRange", () => {
     expect(api.getAnalyticsHourOfWeek).toHaveBeenCalledTimes(1);
     expect(api.getAnalyticsSessionShape).toHaveBeenCalledTimes(1);
     expect(api.getAnalyticsVelocity).toHaveBeenCalledTimes(1);
+    expect(api.getAnalyticsTools).toHaveBeenCalledTimes(1);
 
     assertParams(
       api.getAnalyticsSummary, "2024-02-01", "2024-02-28",
@@ -251,6 +267,9 @@ describe("AnalyticsStore.setDateRange", () => {
     );
     assertParams(
       api.getAnalyticsVelocity, "2024-02-01", "2024-02-28",
+    );
+    assertParams(
+      api.getAnalyticsTools, "2024-02-01", "2024-02-28",
     );
   });
 });

@@ -158,6 +158,8 @@ export interface ActivityEntry {
   messages: number;
   user_messages: number;
   assistant_messages: number;
+  tool_calls: number;
+  thinking_messages: number;
   by_agent: Record<string, number>;
 }
 
@@ -245,4 +247,28 @@ export interface VelocityResponse {
   overall: VelocityOverview;
   by_agent: VelocityBreakdown[];
   by_complexity: VelocityBreakdown[];
+}
+
+export interface ToolCategoryCount {
+  category: string;
+  count: number;
+  pct: number;
+}
+
+export interface ToolAgentBreakdown {
+  agent: string;
+  total: number;
+  categories: ToolCategoryCount[];
+}
+
+export interface ToolTrendEntry {
+  date: string;
+  by_category: Record<string, number>;
+}
+
+export interface ToolsAnalyticsResponse {
+  total_calls: number;
+  by_category: ToolCategoryCount[];
+  by_agent: ToolAgentBreakdown[];
+  trend: ToolTrendEntry[];
 }

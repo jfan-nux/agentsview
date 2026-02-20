@@ -82,6 +82,7 @@ func (s *Server) routes() {
 	s.mux.Handle("GET /api/v1/analytics/hour-of-week", s.withTimeout(s.handleAnalyticsHourOfWeek))
 	s.mux.Handle("GET /api/v1/analytics/sessions", s.withTimeout(s.handleAnalyticsSessionShape))
 	s.mux.Handle("GET /api/v1/analytics/velocity", s.withTimeout(s.handleAnalyticsVelocity))
+	s.mux.Handle("GET /api/v1/analytics/tools", s.withTimeout(s.handleAnalyticsTools))
 
 	s.mux.Handle("GET /api/v1/search", s.withTimeout(s.handleSearch))
 	s.mux.Handle("GET /api/v1/projects", s.withTimeout(s.handleListProjects))

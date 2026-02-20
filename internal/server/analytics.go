@@ -236,6 +236,32 @@ func (s *Server) handleAnalyticsSessionShape(
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) handleAnalyticsTools(
+	w http.ResponseWriter, r *http.Request,
+) {
+	f, ok := parseAnalyticsFilter(w, r)
+	if !ok {
+		return
+	}
+
+	project := r.URL.Query().Get("project")
+
+	result, err := s.db.GetAnalyticsTools(
+		r.Context(), f, project,
+	)
+	if err != nil {
+		if handleContextError(w, err) {
+			return
+		}
+		log.Printf("analytics error: %v", err)
+		writeError(w, http.StatusInternalServerError,
+			"internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (s *Server) handleAnalyticsVelocity(
 	w http.ResponseWriter, r *http.Request,
 ) {
