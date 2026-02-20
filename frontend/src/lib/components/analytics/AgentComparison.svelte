@@ -88,7 +88,7 @@
 <div class="agent-comparison">
   <h3 class="chart-title">Agent Comparison</h3>
 
-  {#if analytics.loading.velocity}
+  {#if analytics.loading.velocity || analytics.loading.summary || analytics.loading.tools}
     <div class="loading">Loading...</div>
   {:else if analytics.errors.velocity}
     <div class="error">

@@ -17,6 +17,11 @@ interface AnalyticsData {
 }
 
 function escapeCSV(value: string): string {
+  // Prevent spreadsheet formula injection: prefix
+  // dangerous leading characters with a single quote.
+  if (/^[=+\-@\t]/.test(value)) {
+    value = "'" + value;
+  }
   if (
     value.includes(",") ||
     value.includes('"') ||
@@ -193,5 +198,5 @@ export function exportAnalyticsCSV(data: AnalyticsData) {
   a.href = url;
   a.download = filename;
   a.click();
-  URL.revokeObjectURL(url);
+  setTimeout(() => URL.revokeObjectURL(url), 100);
 }

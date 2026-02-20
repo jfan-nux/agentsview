@@ -372,12 +372,17 @@ class AnalyticsStore {
   initFromParams(params: Record<string, string>) {
     if (params["from"]) this.from = params["from"];
     if (params["to"]) this.to = params["to"];
-    if (params["granularity"]) {
-      this.granularity = params["granularity"];
+    const g = params["granularity"];
+    if (g && ["day", "week", "month"].includes(g)) {
+      this.granularity = g;
     }
-    if (params["metric"]) this.metric = params["metric"];
-    if (params["selected"]) {
-      this.selectedDate = params["selected"];
+    const m = params["metric"];
+    if (m && ["messages", "sessions"].includes(m)) {
+      this.metric = m;
+    }
+    const sel = params["selected"];
+    if (sel && /^\d{4}-\d{2}-\d{2}$/.test(sel)) {
+      this.selectedDate = sel;
     }
   }
 }

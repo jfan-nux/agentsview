@@ -305,6 +305,17 @@ describe("AnalyticsStore.initFromParams", () => {
     expect(analytics.metric).toBe("messages");
     expect(analytics.selectedDate).toBeNull();
   });
+
+  it("should reject invalid granularity/metric/selected", () => {
+    analytics.initFromParams({
+      granularity: "hourly",
+      metric: "bytes",
+      selected: "not-a-date",
+    });
+    expect(analytics.granularity).toBe("day");
+    expect(analytics.metric).toBe("messages");
+    expect(analytics.selectedDate).toBeNull();
+  });
 });
 
 describe("AnalyticsStore.setGranularity URL sync", () => {

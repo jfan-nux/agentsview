@@ -1603,6 +1603,26 @@ func TestToolCallsMixedSessionsOverlappingOrdinals(t *testing.T) {
 	}
 }
 
+func TestResolveToolCallsPanicsOnLengthMismatch(t *testing.T) {
+	defer func() {
+		r := recover()
+		if r == nil {
+			t.Fatal("expected panic, got none")
+		}
+		msg, ok := r.(string)
+		if !ok || !strings.Contains(msg, "resolveToolCalls") {
+			t.Errorf("unexpected panic value: %v", r)
+		}
+	}()
+
+	msgs := []Message{
+		{SessionID: "s1", Ordinal: 0, Role: "user"},
+		{SessionID: "s1", Ordinal: 1, Role: "assistant"},
+	}
+	ids := []int64{1} // length mismatch
+	resolveToolCalls(msgs, ids)
+}
+
 func TestFTSBackfill(t *testing.T) {
 	dCheck := testDB(t)
 	requireFTS(t, dCheck)

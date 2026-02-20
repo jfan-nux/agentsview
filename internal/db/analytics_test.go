@@ -1290,6 +1290,92 @@ func TestGetAnalyticsVelocity(t *testing.T) {
 		}
 	})
 
+	t.Run("ToolCallsByAgentBreakdown", func(t *testing.T) {
+		d2 := testDB(t)
+		// Two sessions, different agents, each with tool calls
+		insertSession(t, d2, "vta1", "proj", func(s *Session) {
+			s.StartedAt = Ptr("2024-06-01T09:00:00Z")
+			s.MessageCount = 2
+			s.Agent = "claude"
+		})
+		insertMessages(t, d2,
+			Message{
+				SessionID: "vta1", Ordinal: 0, Role: "user",
+				Content: "q", ContentLength: 1,
+				Timestamp: "2024-06-01T09:00:00Z",
+			},
+			Message{
+				SessionID: "vta1", Ordinal: 1,
+				Role:    "assistant",
+				Content: "a", ContentLength: 1,
+				Timestamp:  "2024-06-01T09:00:30Z",
+				HasToolUse: true,
+				ToolCalls: []ToolCall{
+					{SessionID: "vta1", ToolName: "Read",
+						Category: "Read"},
+				},
+			},
+		)
+		insertSession(t, d2, "vta2", "proj", func(s *Session) {
+			s.StartedAt = Ptr("2024-06-01T10:00:00Z")
+			s.MessageCount = 2
+			s.Agent = "codex"
+		})
+		insertMessages(t, d2,
+			Message{
+				SessionID: "vta2", Ordinal: 0, Role: "user",
+				Content: "q", ContentLength: 1,
+				Timestamp: "2024-06-01T10:00:00Z",
+			},
+			Message{
+				SessionID: "vta2", Ordinal: 1,
+				Role:    "assistant",
+				Content: "a", ContentLength: 1,
+				Timestamp:  "2024-06-01T10:00:30Z",
+				HasToolUse: true,
+				ToolCalls: []ToolCall{
+					{SessionID: "vta2", ToolName: "Bash",
+						Category: "Bash"},
+					{SessionID: "vta2", ToolName: "Edit",
+						Category: "Edit"},
+				},
+			},
+		)
+		resp, err := d2.GetAnalyticsVelocity(ctx, baseFilter())
+		if err != nil {
+			t.Fatalf("GetAnalyticsVelocity: %v", err)
+		}
+		// Both agents should appear in ByAgent
+		if len(resp.ByAgent) < 2 {
+			t.Fatalf("ByAgent has %d entries, want >= 2",
+				len(resp.ByAgent))
+		}
+		agentMap := make(map[string]VelocityBreakdown)
+		for _, b := range resp.ByAgent {
+			agentMap[b.Label] = b
+		}
+		claude, ok := agentMap["claude"]
+		if !ok {
+			t.Fatal("missing claude in ByAgent")
+		}
+		if claude.Overview.ToolCallsPerActiveMin != 2.0 {
+			t.Errorf(
+				"claude ToolCallsPerActiveMin = %f, want 2.0",
+				claude.Overview.ToolCallsPerActiveMin,
+			)
+		}
+		codex, ok := agentMap["codex"]
+		if !ok {
+			t.Fatal("missing codex in ByAgent")
+		}
+		if codex.Overview.ToolCallsPerActiveMin != 4.0 {
+			t.Errorf(
+				"codex ToolCallsPerActiveMin = %f, want 4.0",
+				codex.Overview.ToolCallsPerActiveMin,
+			)
+		}
+	})
+
 	t.Run("ToolCallsPerActiveMinZero", func(t *testing.T) {
 		d2 := testDB(t)
 		insertSession(t, d2, "vt2", "proj", func(s *Session) {
