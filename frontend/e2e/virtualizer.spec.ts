@@ -1,15 +1,25 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 
 // Session list is ordered by ended_at DESC.
 // We select sessions by stable properties (project + message count)
 // rather than unstable indices.
 const ESTIMATE_PX = 120;
 
+const SESSIONS = {
+  ALPHA_5: { project: "project-alpha", count: 5, displayRows: 5 },
+  ALPHA_2: { project: "project-alpha", count: 2, displayRows: 2 },
+  BETA_6: { project: "project-beta", count: 6, displayRows: 5 },
+};
+
 function getSessionItem(page: Page, project: string, count: number) {
   return page
     .locator(".session-item")
-    .filter({ has: page.locator(`.session-project:text-is("${project}")`) })
-    .filter({ has: page.locator(`.session-count:text-is("${count}")`) });
+    .filter({
+      has: page.locator(`.session-project:text-is("${project}")`),
+    })
+    .filter({
+      has: page.locator(`.session-count:text-is("${count}")`),
+    });
 }
 
 async function clickSession(
@@ -44,45 +54,88 @@ async function clickSession(
   await expect(messageList).toHaveAttribute("data-loaded", "true");
 
   if (expectedRows !== undefined) {
-    // Wait for the virtual list to settle on the target session's item count
-    // (assumes small item counts fit within viewport+overscan)
-    await expect(page.locator(".virtual-row")).toHaveCount(expectedRows);
+    // Wait for the virtual list to settle on the target session's
+    // item count (assumes small item counts fit within
+    // viewport+overscan)
+    await expect(page.locator(".virtual-row")).toHaveCount(
+      expectedRows,
+    );
   } else {
-    // Wait for the list to render at least one item to ensure loading started
-    // We already confirmed the session ID, so this check is safer now
-    await expect(page.locator(".virtual-row").first()).toBeVisible();
+    // Wait for the list to render at least one item
+    await expect(
+      page.locator(".virtual-row").first(),
+    ).toBeVisible();
+  }
+}
+
+/**
+ * Wait until the virtualizer has measured items and the container
+ * height no longer equals the initial estimate.
+ */
+async function waitForLayoutSettle(page: Page, itemCount: number) {
+  const container = page
+    .locator(".message-list-scroll > div")
+    .first();
+  await expect
+    .poll(async () => {
+      return container.evaluate(
+        (el) => el.getBoundingClientRect().height,
+      );
+    })
+    .not.toBe(itemCount * ESTIMATE_PX);
+  return container;
+}
+
+/**
+ * Verify there are no vertical gaps (> 1px) between consecutive
+ * virtual rows by checking translateY positions against heights.
+ */
+async function verifyNoVerticalGaps(rows: Locator) {
+  const positions = await rows.evaluateAll((els) =>
+    els.map((el) => {
+      const style = el.style.transform;
+      const match = style.match(
+        /translateY\((\d+(?:\.\d+)?)px\)/,
+      );
+      return {
+        translateY: match ? parseFloat(match[1]!) : 0,
+        height: el.offsetHeight,
+      };
+    }),
+  );
+
+  for (let i = 0; i < positions.length - 1; i++) {
+    const current = positions[i]!;
+    const next = positions[i + 1]!;
+    const expectedNextStart = current.translateY + current.height;
+    expect(Math.abs(expectedNextStart - next.translateY))
+      .toBeLessThanOrEqual(1);
   }
 }
 
 test.describe("Virtualizer measurement", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await expect(
+      page.locator("button.session-item").first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
   test("items are measured to actual DOM height", async ({
     page,
   }) => {
-    await page.goto("/");
-    const items = page.locator("button.session-item");
-    await expect(items.first()).toBeVisible({
-      timeout: 10_000,
-    });
-
-    // small-5: project-alpha, 5 msgs
-    await clickSession(page, "project-alpha", 5, 5);
+    const { project, count, displayRows } = SESSIONS.ALPHA_5;
+    await clickSession(page, project, count, displayRows);
 
     const rows = page.locator(".virtual-row");
-
-    const container = page
-      .locator(".message-list-scroll > div")
-      .first();
-
-    // Wait for measurements to settle (height should not be the estimate sum)
-    await expect.poll(async () => {
-        return container.evaluate((el) => el.getBoundingClientRect().height);
-    }).not.toBe(5 * ESTIMATE_PX);
+    const container = await waitForLayoutSettle(
+      page,
+      displayRows,
+    );
 
     const totalHeight = await container.evaluate(
       (el) => el.getBoundingClientRect().height,
     );
-
-    // 5 display items at the default estimate = 600px
     expect(totalHeight).toBeGreaterThan(0);
 
     // Each row should have a measured (non-estimate) height
@@ -99,63 +152,25 @@ test.describe("Virtualizer measurement", () => {
   test("no gaps between consecutive virtual rows", async ({
     page,
   }) => {
-    await page.goto("/");
-    const items = page.locator("button.session-item");
-    await expect(items.first()).toBeVisible({
-      timeout: 10_000,
-    });
-
-    await clickSession(page, "project-alpha", 5, 5);
+    const { project, count, displayRows } = SESSIONS.ALPHA_5;
+    await clickSession(page, project, count, displayRows);
 
     const rows = page.locator(".virtual-row");
-    
-    // Wait for layout to stabilize
-    const container = page.locator(".message-list-scroll > div").first();
-    await expect.poll(async () => {
-        return container.evaluate((el) => el.getBoundingClientRect().height);
-    }).not.toBe(5 * ESTIMATE_PX);
-
-    const positions = await rows.evaluateAll((els) =>
-      els.map((el) => {
-        const style = el.style.transform;
-        const match = style.match(/translateY\((\d+(?:\.\d+)?)px\)/);
-        return {
-          translateY: match ? parseFloat(match[1]!) : 0,
-          height: el.offsetHeight,
-        };
-      }),
-    );
-
-    for (let i = 0; i < positions.length - 1; i++) {
-      const current = positions[i]!;
-      const next = positions[i + 1]!;
-      const expectedNextStart = current.translateY + current.height;
-      expect(Math.abs(expectedNextStart - next.translateY))
-        .toBeLessThanOrEqual(1);
-    }
+    await waitForLayoutSettle(page, displayRows);
+    await verifyNoVerticalGaps(rows);
   });
 
   test("total container height matches sum of items", async ({
     page,
   }) => {
-    await page.goto("/");
-    const items = page.locator("button.session-item");
-    await expect(items.first()).toBeVisible({
-      timeout: 10_000,
-    });
-
-    await clickSession(page, "project-alpha", 5, 5);
+    const { project, count, displayRows } = SESSIONS.ALPHA_5;
+    await clickSession(page, project, count, displayRows);
 
     const rows = page.locator(".virtual-row");
-    
-    const container = page
-      .locator(".message-list-scroll > div")
-      .first();
-
-    // Wait for layout
-    await expect.poll(async () => {
-        return container.evaluate((el) => el.getBoundingClientRect().height);
-    }).not.toBe(5 * ESTIMATE_PX);
+    const container = await waitForLayoutSettle(
+      page,
+      displayRows,
+    );
 
     const sumOfHeights = await rows.evaluateAll((els) =>
       els.reduce((sum, el) => sum + el.offsetHeight, 0),
@@ -173,35 +188,33 @@ test.describe("Virtualizer measurement", () => {
   test("measurements update after session switch", async ({
     page,
   }) => {
-    await page.goto("/");
-    const items = page.locator("button.session-item");
-    await expect(items.first()).toBeVisible({
-      timeout: 10_000,
-    });
+    const sessionA = SESSIONS.ALPHA_5;
+    await clickSession(
+      page,
+      sessionA.project,
+      sessionA.count,
+      sessionA.displayRows,
+    );
 
-    // Session A: small-5 (5 display items)
-    await clickSession(page, "project-alpha", 5, 5);
-    
-    const container = page
-      .locator(".message-list-scroll > div")
-      .first();
-
-    await expect.poll(async () => {
-        return container.evaluate((el) => el.getBoundingClientRect().height);
-    }).not.toBe(5 * ESTIMATE_PX);
+    const container = await waitForLayoutSettle(
+      page,
+      sessionA.displayRows,
+    );
 
     const heightA = await container.evaluate(
       (el) => el.getBoundingClientRect().height,
     );
     expect(heightA).toBeGreaterThan(0);
 
-    // Session B: small-2 (2 display items)
-    // project-alpha, 2 msgs
-    await clickSession(page, "project-alpha", 2, 2);
-    
-    await expect.poll(async () => {
-        return container.evaluate((el) => el.getBoundingClientRect().height);
-    }).not.toBe(2 * ESTIMATE_PX);
+    const sessionB = SESSIONS.ALPHA_2;
+    await clickSession(
+      page,
+      sessionB.project,
+      sessionB.count,
+      sessionB.displayRows,
+    );
+
+    await waitForLayoutSettle(page, sessionB.displayRows);
 
     const heightB = await container.evaluate(
       (el) => el.getBoundingClientRect().height,
@@ -215,13 +228,8 @@ test.describe("Virtualizer measurement", () => {
   test("message virtualizer stays populated across sort toggles", async ({
     page,
   }) => {
-    await page.goto("/");
-    const items = page.locator("button.session-item");
-    await expect(items.first()).toBeVisible({
-      timeout: 10_000,
-    });
-
-    await clickSession(page, "project-alpha", 5, 5);
+    const { project, count, displayRows } = SESSIONS.ALPHA_5;
+    await clickSession(page, project, count, displayRows);
     const rows = page.locator(".virtual-row");
 
     const sortButton = page.getByLabel("Toggle sort order");
@@ -235,20 +243,20 @@ test.describe("Virtualizer measurement", () => {
   test("session switch without explicit row count wait", async ({
     page,
   }) => {
-    await page.goto("/");
-    const items = page.locator("button.session-item");
-    await expect(items.first()).toBeVisible({
-      timeout: 10_000,
-    });
+    const sessionA = SESSIONS.ALPHA_2;
+    await clickSession(
+      page,
+      sessionA.project,
+      sessionA.count,
+      sessionA.displayRows,
+    );
 
-    // First select a session and wait for its rows to render
-    // project-alpha, 2 msgs
-    await clickSession(page, "project-alpha", 2, 2);
-
-    // Initiate the switch to the second session and verify a
-    // loading cycle occurs for the new session, proving the
-    // helper doesn't silently pass on stale state.
-    const targetItem = getSessionItem(page, "project-alpha", 5);
+    const sessionB = SESSIONS.ALPHA_5;
+    const targetItem = getSessionItem(
+      page,
+      sessionB.project,
+      sessionB.count,
+    );
     const targetId = await targetItem.getAttribute(
       "data-session-id",
     );
@@ -261,12 +269,9 @@ test.describe("Virtualizer measurement", () => {
     await targetItem.click();
     await expect(targetItem).toHaveClass(/active/);
 
-    // Prove the messages store actually transitioned away from the
-    // previous session before asserting the final loaded state.
-    // We check that data-messages-session-id is no longer the old
-    // value, which confirms a load cycle started regardless of
-    // whether the intermediate state shows .empty-state or keeps
-    // the .message-list-scroll element in the DOM.
+    // Prove the messages store actually transitioned away from
+    // the previous session before asserting the final loaded
+    // state.
     await expect(messageList).not.toHaveAttribute(
       "data-messages-session-id",
       prevId!,
@@ -280,29 +285,28 @@ test.describe("Virtualizer measurement", () => {
       "true",
     );
 
-    // Wait for at least one row to appear
     await expect(
       page.locator(".virtual-row").first(),
     ).toBeVisible();
 
-    // Verify we see the target session's content, not stale rows
     const rows = page.locator(".virtual-row");
-    await expect(rows).toHaveCount(5);
+    await expect(rows).toHaveCount(sessionB.displayRows);
   });
 });
 
 test.describe("Mixed content rendering", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/");
+    await expect(
+      page.locator("button.session-item").first(),
+    ).toBeVisible({ timeout: 10_000 });
+  });
+
   test("tool group renders for consecutive tool-only messages", async ({
     page,
   }) => {
-    await page.goto("/");
-    const items = page.locator("button.session-item");
-    await expect(items.first()).toBeVisible({
-      timeout: 10_000,
-    });
-
-    // mixed-content-6: project-beta, 6 msgs
-    await clickSession(page, "project-beta", 6, 5);
+    const { project, count, displayRows } = SESSIONS.BETA_6;
+    await clickSession(page, project, count, displayRows);
 
     const toolGroup = page.locator(".tool-group");
     await expect(toolGroup).toBeVisible();
@@ -320,13 +324,8 @@ test.describe("Mixed content rendering", () => {
   test("thinking block is collapsed by default", async ({
     page,
   }) => {
-    await page.goto("/");
-    const items = page.locator("button.session-item");
-    await expect(items.first()).toBeVisible({
-      timeout: 10_000,
-    });
-
-    await clickSession(page, "project-beta", 6, 5);
+    const { project, count, displayRows } = SESSIONS.BETA_6;
+    await clickSession(page, project, count, displayRows);
 
     const thinkingBlock = page.locator(".thinking-block");
     await expect(thinkingBlock).toBeVisible();
