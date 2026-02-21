@@ -7,6 +7,14 @@ vi.mock("../api/client.js", () => ({
   search: vi.fn(),
 }));
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((r) => {
+    resolve = r;
+  });
+  return { promise, resolve };
+}
+
 function makeSearchResponse(
   query: string,
   count: number,
@@ -30,6 +38,8 @@ function makeSearchResponse(
 function abortError(): DOMException {
   return new DOMException("The operation was aborted", "AbortError");
 }
+
+const DEBOUNCE_MS = 300;
 
 describe("SearchStore", () => {
   beforeEach(() => {
@@ -60,11 +70,11 @@ describe("SearchStore", () => {
 
     // Trigger first search
     searchStore.search("hello");
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(DEBOUNCE_MS);
 
     // Trigger second search (aborts first)
     searchStore.search("world");
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(DEBOUNCE_MS);
 
     // Wait for all async work
     await vi.runAllTimersAsync();
@@ -87,7 +97,7 @@ describe("SearchStore", () => {
 
     // Trigger search
     searchStore.search("hello");
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(DEBOUNCE_MS);
 
     // Clear while search is in-flight
     searchStore.clear();
@@ -110,7 +120,7 @@ describe("SearchStore", () => {
     searchStore.search("fi");
     vi.advanceTimersByTime(100);
     searchStore.search("final");
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(DEBOUNCE_MS);
 
     await vi.runAllTimersAsync();
     await Promise.resolve();
@@ -134,7 +144,7 @@ describe("SearchStore", () => {
     expect(searchStore.results.length).toBe(0);
     expect(searchStore.isSearching).toBe(false);
     // No API call should be made for empty query
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(DEBOUNCE_MS);
     expect(api.search).not.toHaveBeenCalled();
   });
 
@@ -150,26 +160,23 @@ describe("SearchStore", () => {
     );
 
     // Second search: hangs until resolved
-    let resolveSecond!: (v: SearchResponse) => void;
-    const secondPromise = new Promise<SearchResponse>((r) => {
-      resolveSecond = r;
-    });
-    vi.mocked(api.search).mockReturnValueOnce(secondPromise);
+    const secondReq = createDeferred<SearchResponse>();
+    vi.mocked(api.search).mockReturnValueOnce(secondReq.promise);
 
     // Trigger first search
     searchStore.search("first");
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(DEBOUNCE_MS);
 
     // Trigger second search (aborts first)
     searchStore.search("second");
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(DEBOUNCE_MS);
     await Promise.resolve();
 
     // isSearching should be true (second search is in-flight)
     expect(searchStore.isSearching).toBe(true);
 
     // Resolve second search
-    resolveSecond(makeSearchResponse("second", 2));
+    secondReq.resolve(makeSearchResponse("second", 2));
     await Promise.resolve();
 
     expect(searchStore.isSearching).toBe(false);
@@ -182,7 +189,7 @@ describe("SearchStore", () => {
     );
 
     searchStore.search("test");
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(DEBOUNCE_MS);
 
     await vi.runAllTimersAsync();
     await Promise.resolve();
