@@ -54,4 +54,16 @@ describe("commitsDisagree", () => {
       ),
     ).toBe(false);
   });
+
+  it("returns false for short abbreviation matching prefix", () => {
+    expect(
+      commitsDisagree("abc12", "abc1234def5678"),
+    ).toBe(false);
+  });
+
+  it("returns true for short abbreviation not matching", () => {
+    expect(
+      commitsDisagree("xyz99", "abc1234def5678"),
+    ).toBe(true);
+  });
 });

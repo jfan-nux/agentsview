@@ -21,12 +21,9 @@ export function commitsDisagree(
 ): boolean {
   if (a === "unknown" || b === "unknown") return false;
   if (a === b) return false;
+  if (a.length === b.length) return true;
   const minLen = Math.min(a.length, b.length);
-  if (minLen < HASH_PREFIX_LEN) return true;
-  if (a.length !== b.length) {
-    return a.slice(0, minLen) !== b.slice(0, minLen);
-  }
-  return true;
+  return a.slice(0, minLen) !== b.slice(0, minLen);
 }
 
 class SyncStore {
