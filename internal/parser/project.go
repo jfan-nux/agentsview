@@ -20,7 +20,7 @@ func normalizeName(s string) string {
 
 // GetProjectName converts an encoded Claude project directory name
 // to a clean project name. Claude encodes paths like
-// /Users/wesm/code/my-app as -Users-wesm-code-my-app.
+// /Users/alice/code/my-app as -Users-alice-code-my-app.
 func GetProjectName(dirName string) string {
 	if dirName == "" {
 		return ""

@@ -77,12 +77,12 @@ func TestSyncEngineIntegration(t *testing.T) {
 	env := setupTestEnv(t)
 
 	content := testjsonl.NewSessionBuilder().
-		AddClaudeUser(tsEarly, "Hello", "/Users/wesm/code/my-app").
+		AddClaudeUser(tsEarly, "Hello", "/Users/alice/code/my-app").
 		AddClaudeAssistant(tsEarlyS5, "Hi there!").
 		String()
 
 	env.writeClaudeSession(
-		t, "-Users-wesm-code-my-app",
+		t, "-Users-alice-code-my-app",
 		"test-session.jsonl", content,
 	)
 
@@ -408,7 +408,7 @@ func TestSyncSingleSessionProjectFallback(t *testing.T) {
 	})
 
 	// Case B: Bad project -> should fall back to directory
-	env.updateSessionProject(t, "fallback-test", "_Users_wesm_bad")
+	env.updateSessionProject(t, "fallback-test", "_Users_alice_bad")
 
 	err = env.engine.SyncSingleSession("fallback-test")
 	if err != nil {

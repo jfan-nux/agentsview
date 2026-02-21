@@ -20,27 +20,27 @@ func TestGetProjectName(t *testing.T) {
 	}{
 		{"simple name", "my-project", "my_project"},
 		{"encoded path with code",
-			"-Users-wesm-code-my-app", "my_app"},
+			"-Users-alice-code-my-app", "my_app"},
 		{"encoded path with projects",
-			"-Users-wesm-projects-api-server", "api_server"},
+			"-Users-alice-projects-api-server", "api_server"},
 		{"encoded path with repos",
 			"-home-user-repos-frontend", "frontend"},
 		{"encoded path without marker",
-			"-Users-wesm", "wesm"},
+			"-Users-alice", "alice"},
 		{"empty", "", ""},
 		{"no prefix", "plain_name", "plain_name"},
 		{"with src marker",
-			"-Users-wesm-src-my-lib", "my_lib"},
+			"-Users-alice-src-my-lib", "my_lib"},
 		{"multi-word after marker",
-			"-Users-wesm-code-my-cool-project", "my_cool_project"},
+			"-Users-alice-code-my-cool-project", "my_cool_project"},
 		{"deeply nested",
-			"-Users-wesm-code-org-team-repo", "org_team_repo"},
+			"-Users-alice-code-org-team-repo", "org_team_repo"},
 		{"unicode components",
-			"-Users-wesm-code-café-app", "café_app"},
+			"-Users-alice-code-café-app", "café_app"},
 		{"trailing dash",
-			"-Users-wesm-code-myapp-", "myapp_"},
+			"-Users-alice-code-myapp-", "myapp_"},
 		{"double dashes",
-			"-Users-wesm-code--my-app", "_my_app"},
+			"-Users-alice-code--my-app", "_my_app"},
 	}
 
 	for _, tt := range tests {
@@ -59,7 +59,7 @@ func TestExtractProjectFromCwd(t *testing.T) {
 		cwd  string
 		want string
 	}{
-		{"/Users/wesm/code/my-app", "my_app"},
+		{"/Users/alice/code/my-app", "my_app"},
 		{"/home/user/projects/api-server", "api_server"},
 		{"", ""},
 		{"/", ""},
@@ -99,7 +99,7 @@ func TestNeedsProjectReparse(t *testing.T) {
 		want    bool
 	}{
 		{"my_project", false},
-		{"_Users_wesm_code_app", true},
+		{"_Users_alice_code_app", true},
 		{"_home_user_project", true},
 		{"_private_var_folders", true},
 		{"good_project_var_folders_ok", true},
@@ -580,7 +580,7 @@ func TestIsClaudeSystemMessage(t *testing.T) {
 
 func TestParseClaudeSession(t *testing.T) {
 	validContent := testjsonl.JoinJSONL(
-		testjsonl.ClaudeUserJSON("Fix the login bug", tsEarly, "/Users/wesm/code/my-app"),
+		testjsonl.ClaudeUserJSON("Fix the login bug", tsEarly, "/Users/alice/code/my-app"),
 		testjsonl.ClaudeAssistantJSON([]map[string]any{
 			{"type": "text", "text": "Looking at the auth module..."},
 			{"type": "tool_use", "name": "Read", "input": map[string]string{"file_path": "src/auth.ts"}},
@@ -842,7 +842,7 @@ func TestParseCodexSession(t *testing.T) {
 		{
 			name: "standard session",
 			content: testjsonl.JoinJSONL(
-				testjsonl.CodexSessionMetaJSON("abc-123", "/Users/wesm/code/my-api", "user", tsEarly),
+				testjsonl.CodexSessionMetaJSON("abc-123", "/Users/alice/code/my-api", "user", tsEarly),
 				testjsonl.CodexMsgJSON("user", "Add rate limiting", tsEarlyS1),
 				testjsonl.CodexMsgJSON("assistant", "I'll add rate limiting to the API.", tsEarlyS5),
 			),
@@ -904,7 +904,7 @@ func TestParseCodexSession(t *testing.T) {
 		{
 			name: "function calls",
 			content: testjsonl.JoinJSONL(
-				testjsonl.CodexSessionMetaJSON("fc-1", "/Users/wesm/code/app", "user", tsEarly),
+				testjsonl.CodexSessionMetaJSON("fc-1", "/Users/alice/code/app", "user", tsEarly),
 				testjsonl.CodexMsgJSON("user", "Run the tests", tsEarlyS1),
 				testjsonl.CodexFunctionCallJSON("shell_command", "Running tests", tsEarlyS5),
 				testjsonl.CodexFunctionCallJSON("apply_patch", "Fixing typo", tsLate),
@@ -1025,7 +1025,7 @@ func TestParseCodexSession(t *testing.T) {
 		{
 			name: "second session_meta with unparsable cwd resets project",
 			content: testjsonl.JoinJSONL(
-				testjsonl.CodexSessionMetaJSON("multi", "/Users/wesm/code/my-api", "user", tsEarly),
+				testjsonl.CodexSessionMetaJSON("multi", "/Users/alice/code/my-api", "user", tsEarly),
 				testjsonl.CodexMsgJSON("user", "hello", tsEarlyS1),
 				testjsonl.CodexSessionMetaJSON("multi", "/", "user", "2024-01-01T10:00:02Z"),
 			),
@@ -1186,8 +1186,8 @@ func TestExtractCwdFromSession(t *testing.T) {
 	}{
 		{
 			"has cwd field",
-			`{"type":"user","timestamp":"2024-01-01T00:00:00Z","message":{"content":"hi"},"cwd":"/Users/wesm/code/my-app"}` + "\n",
-			"/Users/wesm/code/my-app",
+			`{"type":"user","timestamp":"2024-01-01T00:00:00Z","message":{"content":"hi"},"cwd":"/Users/alice/code/my-app"}` + "\n",
+			"/Users/alice/code/my-app",
 		},
 		{
 			"no cwd field",

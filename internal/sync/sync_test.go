@@ -340,20 +340,20 @@ func TestFindGeminiSourceFile(t *testing.T) {
 }
 
 func TestGeminiPathHash(t *testing.T) {
-	// Known SHA-256 of "/Users/wesm/code/roborev"
-	hash := geminiPathHash("/Users/wesm/code/roborev")
+	// Known SHA-256 of "/Users/alice/code/sample-repo"
+	hash := geminiPathHash("/Users/alice/code/sample-repo")
 	if len(hash) != 64 {
 		t.Errorf("hash length = %d, want 64", len(hash))
 	}
 	// Hash should be deterministic
-	if geminiPathHash("/Users/wesm/code/roborev") != hash {
+	if geminiPathHash("/Users/alice/code/sample-repo") != hash {
 		t.Error("hash not deterministic")
 	}
 }
 
 func TestBuildGeminiProjectMap(t *testing.T) {
 	dir := t.TempDir()
-	projectsJSON := `{"projects":{"/Users/wesm/code/my-app":"my-app"}}`
+	projectsJSON := `{"projects":{"/Users/alice/code/my-app":"my-app"}}`
 	if err := os.WriteFile(
 		filepath.Join(dir, "projects.json"),
 		[]byte(projectsJSON), 0o644,
@@ -362,7 +362,7 @@ func TestBuildGeminiProjectMap(t *testing.T) {
 	}
 
 	m := buildGeminiProjectMap(dir)
-	hash := geminiPathHash("/Users/wesm/code/my-app")
+	hash := geminiPathHash("/Users/alice/code/my-app")
 	if m[hash] != "my_app" {
 		t.Errorf("project for hash = %q, want %q",
 			m[hash], "my_app")
