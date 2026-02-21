@@ -4,32 +4,32 @@ import { commitsDisagree } from "./sync.svelte.js";
 describe("commitsDisagree", () => {
   it.each([
     // Unknown / undefined handling
-    [false, "unknown", "unknown", "both are unknown"],
-    [false, "unknown", "abc1234", "frontend is unknown"],
-    [false, "abc1234", "unknown", "server is unknown"],
-    [false, undefined, "abc1234", "first hash is undefined"],
-    [false, "abc1234", undefined, "second hash is undefined"],
-    [false, undefined, undefined, "both hashes are undefined"],
+    { expected: false, hash1: "unknown", hash2: "unknown", scenario: "both are unknown" },
+    { expected: false, hash1: "unknown", hash2: "abc1234", scenario: "frontend is unknown" },
+    { expected: false, hash1: "abc1234", hash2: "unknown", scenario: "server is unknown" },
+    { expected: false, hash1: undefined, hash2: "abc1234", scenario: "first hash is undefined" },
+    { expected: false, hash1: "abc1234", hash2: undefined, scenario: "second hash is undefined" },
+    { expected: false, hash1: undefined, hash2: undefined, scenario: "both hashes are undefined" },
 
     // Empty strings
-    [false, "", "abc1234", "first hash is empty"],
-    [false, "abc1234", "", "second hash is empty"],
-    [false, "", "", "both hashes are empty"],
+    { expected: false, hash1: "", hash2: "abc1234", scenario: "first hash is empty" },
+    { expected: false, hash1: "abc1234", hash2: "", scenario: "second hash is empty" },
+    { expected: false, hash1: "", hash2: "", scenario: "both hashes are empty" },
 
     // Matches
-    [false, "abc1234", "abc1234", "identical short hashes"],
-    [false, "abc1234", "abc1234def5678", "short matches full SHA prefix"],
-    [false, "abc1234aaaaaaaaaaaa", "abc1234aaaaaaaaaaaa", "identical full SHAs"],
-    [false, "abc12", "abc1234def5678", "short abbreviation matching prefix"],
+    { expected: false, hash1: "abc1234", hash2: "abc1234", scenario: "identical short hashes" },
+    { expected: false, hash1: "abc1234", hash2: "abc1234def5678", scenario: "short matches full SHA prefix" },
+    { expected: false, hash1: "abc1234aaaaaaaaaaaa", hash2: "abc1234aaaaaaaaaaaa", scenario: "identical full SHAs" },
+    { expected: false, hash1: "abc12", hash2: "abc1234def5678", scenario: "short abbreviation matching prefix" },
 
     // Mismatches
-    [true, "abc1234", "def5678", "different hashes"],
-    [true, "abc1234aaaaaaaaaaaa", "def5678bbbbbbbbbbb", "full SHAs differ"],
-    [true, "abc1234aaaaaaaaaaaa", "abc1234bbbbbbbbbbb", "full SHAs share 7-char prefix"],
-    [true, "xyz99", "abc1234def5678", "short abbreviation not matching"],
-  ] as const)(
-    "returns %s when %s",
-    (expected, hash1, hash2, _scenario) => {
+    { expected: true, hash1: "abc1234", hash2: "def5678", scenario: "different hashes" },
+    { expected: true, hash1: "abc1234aaaaaaaaaaaa", hash2: "def5678bbbbbbbbbbb", scenario: "full SHAs differ" },
+    { expected: true, hash1: "abc1234aaaaaaaaaaaa", hash2: "abc1234bbbbbbbbbbb", scenario: "full SHAs share 7-char prefix" },
+    { expected: true, hash1: "xyz99", hash2: "abc1234def5678", scenario: "short abbreviation not matching" },
+  ])(
+    "returns $expected when $scenario",
+    ({ expected, hash1, hash2 }) => {
       expect(commitsDisagree(hash1, hash2)).toBe(expected);
     },
   );
