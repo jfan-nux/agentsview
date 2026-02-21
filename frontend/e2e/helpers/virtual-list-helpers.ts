@@ -35,22 +35,29 @@ export async function scrollListTo(
  * Polls a value-producing function until the value stays
  * constant for `stableDurationMs`. Throws if the value does
  * not stabilize within `maxWaitMs`.
+ *
+ * Uses `Object.is` for equality by default, which means callers
+ * returning new object/array instances each poll must supply a
+ * custom `isEqual` comparator.
  */
 export async function waitForStableValue<T>(
   fn: () => Promise<T> | T,
   stableDurationMs: number,
-  pollIntervalMs: number = 100,
-  maxWaitMs: number = stableDurationMs * 3,
+  pollIntervalMs?: number,
+  maxWaitMs?: number,
+  isEqual: (a: T, b: T) => boolean = Object.is,
 ): Promise<T> {
-  const deadline = Date.now() + maxWaitMs;
+  const interval = pollIntervalMs ?? 100;
+  const deadline =
+    Date.now() + (maxWaitMs ?? stableDurationMs * 3);
   let lastValue = await fn();
   let stableStart = Date.now();
 
   while (Date.now() < deadline) {
-    await new Promise((r) => setTimeout(r, pollIntervalMs));
+    await new Promise((r) => setTimeout(r, interval));
     const current = await fn();
 
-    if (current !== lastValue) {
+    if (!isEqual(current, lastValue)) {
       lastValue = current;
       stableStart = Date.now();
     } else if (Date.now() - stableStart >= stableDurationMs) {
@@ -58,7 +65,8 @@ export async function waitForStableValue<T>(
     }
   }
   throw new Error(
-    `Value did not stabilize within ${maxWaitMs}ms.` +
+    `Value did not stabilize within ` +
+      `${maxWaitMs ?? stableDurationMs * 3}ms.` +
       ` Last value: ${lastValue}`,
   );
 }
