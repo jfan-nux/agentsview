@@ -126,10 +126,6 @@
     analytics.selectHourOfWeek(null, hour);
   }
 
-  function clearFilter() {
-    analytics.selectHourOfWeek(null, null);
-  }
-
   function isDimmed(dow: number, hour: number): boolean {
     const sd = analytics.selectedDow;
     const sh = analytics.selectedHour;
@@ -140,24 +136,6 @@
     if (sd !== null) return dow !== sd;
     return hour !== sh;
   }
-
-  const hasFilter = $derived(
-    analytics.selectedDow !== null ||
-    analytics.selectedHour !== null,
-  );
-
-  const filterLabel = $derived.by(() => {
-    const sd = analytics.selectedDow;
-    const sh = analytics.selectedHour;
-    if (sd !== null && sh !== null) {
-      return `${DAY_LABELS[sd]} ${sh.toString().padStart(2, "0")}:00`;
-    }
-    if (sd !== null) return DAY_LABELS[sd]!;
-    if (sh !== null) {
-      return `${sh.toString().padStart(2, "0")}:00`;
-    }
-    return "";
-  });
 
   function shortTz(tz: string): string {
     const slash = tz.lastIndexOf("/");
@@ -173,16 +151,6 @@
       Activity by Day and Hour
       <span class="tz-label">{shortTz(analytics.timezone)}</span>
     </h3>
-    {#if hasFilter}
-      <span class="filter-badge">
-        {filterLabel}
-        <button
-          class="clear-btn"
-          onclick={clearFilter}
-          aria-label="Clear time filter"
-        >&times;</button>
-      </span>
-    {/if}
   </div>
 
   {#if analytics.loading.hourOfWeek}
@@ -293,30 +261,6 @@
     color: var(--text-muted);
     font-size: 10px;
     margin-left: 4px;
-  }
-
-  .filter-badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 6px;
-    font-size: 10px;
-    font-weight: 500;
-    color: var(--accent-blue);
-    background: var(--user-bg);
-    border-radius: var(--radius-sm);
-  }
-
-  .clear-btn {
-    font-size: 12px;
-    line-height: 1;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0 2px;
-  }
-
-  .clear-btn:hover {
-    color: var(--text-primary);
   }
 
   .how-scroll {

@@ -11,6 +11,7 @@
   import ToolUsage from "./ToolUsage.svelte";
   import AgentComparison from "./AgentComparison.svelte";
   import TopSessions from "./TopSessions.svelte";
+  import ActiveFilters from "./ActiveFilters.svelte";
   import { analytics } from "../../stores/analytics.svelte.js";
   import { exportAnalyticsCSV } from "../../utils/csv-export.js";
 
@@ -62,6 +63,8 @@
       Export CSV
     </button>
   </div>
+
+  <ActiveFilters />
 
   <div class="analytics-content">
     <SummaryCards />

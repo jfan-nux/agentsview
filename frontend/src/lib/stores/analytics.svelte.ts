@@ -116,6 +116,52 @@ class AnalyticsStore {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
   }
 
+  get hasActiveFilters(): boolean {
+    return (
+      this.selectedDate !== null ||
+      this.project !== "" ||
+      this.selectedDow !== null ||
+      this.selectedHour !== null
+    );
+  }
+
+  clearAllFilters() {
+    this.selectedDate = null;
+    this.project = "";
+    this.selectedDow = null;
+    this.selectedHour = null;
+    this.fetchAll();
+  }
+
+  clearDate() {
+    this.selectedDate = null;
+    this.fetchSummary();
+    this.fetchActivity();
+    this.fetchProjects();
+    this.fetchSessionShape();
+    this.fetchVelocity();
+    this.fetchTools();
+    this.fetchTopSessions();
+  }
+
+  clearProject() {
+    this.project = "";
+    this.fetchAll();
+  }
+
+  clearTimeFilter() {
+    this.selectedDow = null;
+    this.selectedHour = null;
+    this.fetchSummary();
+    this.fetchActivity();
+    this.fetchHeatmap();
+    this.fetchProjects();
+    this.fetchSessionShape();
+    this.fetchVelocity();
+    this.fetchTools();
+    this.fetchTopSessions();
+  }
+
   private baseParams(
     opts: {
       includeProject?: boolean;

@@ -90,15 +90,7 @@
 <div class="breakdown-container">
   <div class="breakdown-header">
     <h3 class="chart-title">Projects</h3>
-    {#if analytics.project}
-      <button
-        class="filter-badge"
-        onclick={() => analytics.setProject(analytics.project)}
-      >
-        {analytics.project}
-        <span class="clear-x">&times;</span>
-      </button>
-    {:else if rows.length > 0}
+    {#if rows.length > 0}
       <span class="count">{analytics.projects?.projects.length ?? 0} total</span>
     {/if}
   </div>
@@ -217,31 +209,6 @@
 
   .bar-row.dimmed:hover {
     opacity: 0.7;
-  }
-
-  .filter-badge {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    padding: 1px 6px;
-    font-size: 10px;
-    color: var(--accent-blue);
-    background: color-mix(
-      in srgb, var(--accent-blue) 12%, transparent
-    );
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-  }
-
-  .filter-badge:hover {
-    background: color-mix(
-      in srgb, var(--accent-blue) 20%, transparent
-    );
-  }
-
-  .clear-x {
-    font-size: 12px;
-    line-height: 1;
   }
 
   .project-name {
