@@ -7,7 +7,6 @@ import type {
 } from "../api/types.js";
 
 const POLL_INTERVAL_MS = 10_000;
-const HASH_PREFIX_LEN = 7;
 
 /**
  * Compare two commit hashes, tolerating short vs full SHA.
@@ -16,11 +15,11 @@ const HASH_PREFIX_LEN = 7;
  * than the other (i.e. an abbreviation).
  */
 export function commitsDisagree(
-  a: string,
-  b: string,
+  a: string | undefined,
+  b: string | undefined,
 ): boolean {
+  if (!a || !b) return false;
   if (a === "unknown" || b === "unknown") return false;
-  if (!a || !b) return true;
   if (a === b) return false;
   if (a.length === b.length) return true;
   const minLen = Math.min(a.length, b.length);
@@ -51,8 +50,8 @@ class SyncStore {
       this.lastSync = newLastSync;
       this.lastSyncStats = status.stats;
       if (changed) this.loadStats();
-    } catch {
-      // Non-fatal
+    } catch (error) {
+      console.warn("Failed to load sync status:", error);
     }
   }
 
@@ -74,8 +73,8 @@ class SyncStore {
   async loadStats() {
     try {
       this.stats = await api.getStats();
-    } catch {
-      // Non-fatal
+    } catch (error) {
+      console.warn("Failed to load sync stats:", error);
     }
   }
 
@@ -86,8 +85,8 @@ class SyncStore {
         this.buildCommit,
         this.serverVersion.commit,
       );
-    } catch {
-      // Non-fatal
+    } catch (error) {
+      console.warn("Failed to load version info:", error);
     }
   }
 
@@ -95,6 +94,11 @@ class SyncStore {
     if (this.syncing) return;
     this.syncing = true;
     this.progress = null;
+
+    const finalizeSync = () => {
+      this.syncing = false;
+      this.progress = null;
+    };
 
     const handle = api.triggerSync((p: SyncProgress) => {
       this.progress = p;
@@ -104,9 +108,8 @@ class SyncStore {
       .then((s: SyncStats) => {
         this.lastSyncStats = s;
         this.lastSync = new Date().toISOString();
-        this.syncing = false;
-        this.progress = null;
         this.loadStats();
+        finalizeSync();
         onComplete?.();
       })
       .catch((err: unknown) => {
@@ -116,8 +119,7 @@ class SyncStore {
         ) {
           return;
         }
-        this.syncing = false;
-        this.progress = null;
+        finalizeSync();
       });
   }
 

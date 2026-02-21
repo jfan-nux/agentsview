@@ -67,15 +67,27 @@ describe("commitsDisagree", () => {
     ).toBe(true);
   });
 
-  it("returns true when first hash is empty", () => {
-    expect(commitsDisagree("", "abc1234")).toBe(true);
+  it("returns false when first hash is empty", () => {
+    expect(commitsDisagree("", "abc1234")).toBe(false);
   });
 
-  it("returns true when second hash is empty", () => {
-    expect(commitsDisagree("abc1234", "")).toBe(true);
+  it("returns false when second hash is empty", () => {
+    expect(commitsDisagree("abc1234", "")).toBe(false);
   });
 
-  it("returns true when both hashes are empty", () => {
-    expect(commitsDisagree("", "")).toBe(true);
+  it("returns false when both hashes are empty", () => {
+    expect(commitsDisagree("", "")).toBe(false);
+  });
+
+  it("returns false when first hash is undefined", () => {
+    expect(commitsDisagree(undefined, "abc1234")).toBe(false);
+  });
+
+  it("returns false when second hash is undefined", () => {
+    expect(commitsDisagree("abc1234", undefined)).toBe(false);
+  });
+
+  it("returns false when both hashes are undefined", () => {
+    expect(commitsDisagree(undefined, undefined)).toBe(false);
   });
 });
