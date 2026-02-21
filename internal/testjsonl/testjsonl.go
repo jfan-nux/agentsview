@@ -154,6 +154,30 @@ func CodexFunctionCallArgsJSON(
 	return mustMarshal(m)
 }
 
+// CodexFunctionCallFieldsJSON returns a Codex function_call
+// response_item with explicit arguments and input fields.
+func CodexFunctionCallFieldsJSON(
+	name string, arguments, input any, timestamp string,
+) string {
+	payload := map[string]any{
+		"type":    "function_call",
+		"name":    name,
+		"call_id": "call_test",
+	}
+	if arguments != nil {
+		payload["arguments"] = arguments
+	}
+	if input != nil {
+		payload["input"] = input
+	}
+	m := map[string]any{
+		"type":      "response_item",
+		"timestamp": timestamp,
+		"payload":   payload,
+	}
+	return mustMarshal(m)
+}
+
 // JoinJSONL joins JSON lines with newlines and appends a
 // trailing newline.
 func JoinJSONL(lines ...string) string {

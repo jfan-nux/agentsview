@@ -126,10 +126,14 @@ install_from_release() {
         return 1
     fi
 
-    if ! download "${base_url}/SHA256SUMS" "$tmpdir/SHA256SUMS"; then
-        error "Failed to download SHA256SUMS. Cannot verify binary integrity."
+    if [ "${AGENTSVIEW_SKIP_CHECKSUM:-0}" != "1" ]; then
+        if ! download "${base_url}/SHA256SUMS" "$tmpdir/SHA256SUMS"; then
+            error "Failed to download SHA256SUMS. Cannot verify binary integrity."
+        fi
+        verify_checksum "$tmpdir/release.tar.gz" "$tmpdir/SHA256SUMS" "$filename"
+    else
+        warn "Checksum verification skipped (AGENTSVIEW_SKIP_CHECKSUM=1)"
     fi
-    verify_checksum "$tmpdir/release.tar.gz" "$tmpdir/SHA256SUMS" "$filename"
 
     info "Extracting..."
     tar -xzf "$tmpdir/release.tar.gz" -C "$tmpdir"

@@ -245,4 +245,3 @@ func TestResolveDataDir_DefaultAndEnvOverride(t *testing.T) {
 		t.Errorf("ResolveDataDir = %q, want %q", dir, custom)
 	}
 }
-

@@ -1055,6 +1055,78 @@ func TestParseCodexSession(t *testing.T) {
 			},
 		},
 		{
+			name: "empty arguments falls through to input",
+			content: testjsonl.JoinJSONL(
+				testjsonl.CodexSessionMetaJSON(
+					"fc-empty-args", "/tmp", "user", tsEarly,
+				),
+				testjsonl.CodexMsgJSON(
+					"user", "run command", tsEarlyS1,
+				),
+				testjsonl.CodexFunctionCallFieldsJSON(
+					"exec_command",
+					map[string]any{},
+					`{"cmd":"ls -la"}`,
+					tsEarlyS5,
+				),
+			),
+			wantID:   "codex:fc-empty-args",
+			wantMsgs: 2,
+			check: func(
+				t *testing.T, _ *ParsedSession,
+				msgs []ParsedMessage,
+			) {
+				t.Helper()
+				want := "[Bash]\n$ ls -la"
+				if msgs[1].Content != want {
+					t.Errorf(
+						"content = %q, want %q",
+						msgs[1].Content, want,
+					)
+				}
+			},
+		},
+		{
+			name: "write_stdin formats with session and chars",
+			content: testjsonl.JoinJSONL(
+				testjsonl.CodexSessionMetaJSON(
+					"fc-stdin", "/tmp", "user", tsEarly,
+				),
+				testjsonl.CodexMsgJSON(
+					"user", "send input", tsEarlyS1,
+				),
+				testjsonl.CodexFunctionCallArgsJSON(
+					"write_stdin",
+					map[string]any{
+						"session_id": "sess-42",
+						"chars":      "yes\n",
+					},
+					tsEarlyS5,
+				),
+			),
+			wantID:   "codex:fc-stdin",
+			wantMsgs: 2,
+			check: func(
+				t *testing.T, _ *ParsedSession,
+				msgs []ParsedMessage,
+			) {
+				t.Helper()
+				want := "[Bash: stdin -> sess-42]\nyes\\n"
+				if msgs[1].Content != want {
+					t.Errorf(
+						"content = %q, want %q",
+						msgs[1].Content, want,
+					)
+				}
+				if msgs[1].ToolCalls[0].Category != "Bash" {
+					t.Errorf(
+						"category = %q, want Bash",
+						msgs[1].ToolCalls[0].Category,
+					)
+				}
+			},
+		},
+		{
 			name: "large message within scanner limit",
 			content: testjsonl.JoinJSONL(
 				testjsonl.CodexSessionMetaJSON("big", "/tmp", "user", tsEarly),

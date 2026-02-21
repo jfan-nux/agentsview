@@ -1916,12 +1916,12 @@ func TestTimeFilter(t *testing.T) {
 		Message{
 			SessionID: "tf1", Ordinal: 0, Role: "user",
 			Timestamp: "2024-06-01T09:05:00Z",
-			Content: "hello", ContentLength: 5,
+			Content:   "hello", ContentLength: 5,
 		},
 		Message{
 			SessionID: "tf1", Ordinal: 1, Role: "assistant",
 			Timestamp: "2024-06-01T09:10:00Z",
-			Content: "hi", ContentLength: 2,
+			Content:   "hi", ContentLength: 2,
 		},
 	)
 
@@ -1934,7 +1934,7 @@ func TestTimeFilter(t *testing.T) {
 	insertMessages(t, d, Message{
 		SessionID: "tf2", Ordinal: 0, Role: "user",
 		Timestamp: "2024-06-01T14:05:00Z",
-		Content: "world", ContentLength: 5,
+		Content:   "world", ContentLength: 5,
 	})
 
 	insertSession(t, d, "tf3", "proj", func(s *Session) {
@@ -1946,7 +1946,7 @@ func TestTimeFilter(t *testing.T) {
 	insertMessages(t, d, Message{
 		SessionID: "tf3", Ordinal: 0, Role: "user",
 		Timestamp: "2024-06-03T09:30:00Z",
-		Content: "test", ContentLength: 4,
+		Content:   "test", ContentLength: 4,
 	})
 
 	f := AnalyticsFilter{

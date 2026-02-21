@@ -245,6 +245,30 @@ func TestFormatContentForExport_Escaping(t *testing.T) {
 			nil,
 		},
 		{
+			"LegacyCodexExecCommand",
+			"[exec_command]\n$ ls -la",
+			[]string{`class="tool-block"`},
+			nil,
+		},
+		{
+			"LegacyCodexParallel",
+			"[parallel]\nrunning tasks",
+			[]string{`class="tool-block"`},
+			nil,
+		},
+		{
+			"LegacyCodexViewImage",
+			"[view_image]\nimage.png",
+			[]string{`class="tool-block"`},
+			nil,
+		},
+		{
+			"LegacyCodexUpdatePlan",
+			"[update_plan]\nnew plan",
+			[]string{`class="tool-block"`},
+			nil,
+		},
+		{
 			"EmptyInput",
 			"",
 			[]string{""},
