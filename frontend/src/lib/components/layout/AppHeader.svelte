@@ -45,7 +45,7 @@
 
     <select
       class="project-select"
-      value={sessions.projectFilter}
+      value={sessions.filters.project}
       onchange={handleProjectChange}
     >
       <option value="">All Projects</option>

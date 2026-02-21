@@ -48,7 +48,7 @@
     selectedIndex = 0;
 
     if (inputValue.length >= 3) {
-      searchStore.search(inputValue, sessions.projectFilter);
+      searchStore.search(inputValue, sessions.filters.project);
     } else {
       searchStore.clear();
     }

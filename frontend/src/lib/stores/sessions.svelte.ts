@@ -3,6 +3,28 @@ import type { Session, ProjectInfo } from "../api/types.js";
 
 const SESSION_PAGE_SIZE = 500;
 
+interface Filters {
+  project: string;
+  agent: string;
+  date: string;
+  dateFrom: string;
+  dateTo: string;
+  minMessages: number;
+  maxMessages: number;
+}
+
+function defaultFilters(): Filters {
+  return {
+    project: "",
+    agent: "",
+    date: "",
+    dateFrom: "",
+    dateTo: "",
+    minMessages: 0,
+    maxMessages: 0,
+  };
+}
+
 class SessionsStore {
   sessions: Session[] = $state([]);
   projects: ProjectInfo[] = $state([]);
@@ -10,13 +32,7 @@ class SessionsStore {
   nextCursor: string | null = $state(null);
   total: number = $state(0);
   loading: boolean = $state(false);
-  projectFilter: string = $state("");
-  agentFilter: string = $state("");
-  dateFilter: string = $state("");
-  dateFromFilter: string = $state("");
-  dateToFilter: string = $state("");
-  minMessagesFilter: number = $state(0);
-  maxMessagesFilter: number = $state(0);
+  filters: Filters = $state(defaultFilters());
 
   private loadVersion: number = 0;
   private projectsLoaded: boolean = false;
@@ -28,34 +44,54 @@ class SessionsStore {
     );
   }
 
-  initFromParams(params: Record<string, string>) {
-    const project = params["project"] ?? "";
-    const agent = params["agent"] ?? "";
-    const date = params["date"] ?? "";
-    const dateFrom = params["date_from"] ?? "";
-    const dateTo = params["date_to"] ?? "";
-    const minMsgs = parseInt(params["min_messages"] ?? "", 10);
-    const maxMsgs = parseInt(params["max_messages"] ?? "", 10);
+  private get apiParams() {
+    const f = this.filters;
+    return {
+      project: f.project || undefined,
+      agent: f.agent || undefined,
+      date: f.date || undefined,
+      date_from: f.dateFrom || undefined,
+      date_to: f.dateTo || undefined,
+      min_messages:
+        f.minMessages > 0 ? f.minMessages : undefined,
+      max_messages:
+        f.maxMessages > 0 ? f.maxMessages : undefined,
+    };
+  }
 
-    this.projectFilter = project;
-    this.agentFilter = agent;
-    this.dateFilter = date;
-    this.dateFromFilter = dateFrom;
-    this.dateToFilter = dateTo;
-    this.minMessagesFilter = Number.isFinite(minMsgs) ? minMsgs : 0;
-    this.maxMessagesFilter = Number.isFinite(maxMsgs) ? maxMsgs : 0;
-    this.activeSessionId = null;
+  private resetPagination() {
     this.sessions = [];
     this.nextCursor = null;
     this.total = 0;
   }
 
+  initFromParams(params: Record<string, string>) {
+    const minMsgs = parseInt(
+      params["min_messages"] ?? "",
+      10,
+    );
+    const maxMsgs = parseInt(
+      params["max_messages"] ?? "",
+      10,
+    );
+
+    this.filters = {
+      project: params["project"] ?? "",
+      agent: params["agent"] ?? "",
+      date: params["date"] ?? "",
+      dateFrom: params["date_from"] ?? "",
+      dateTo: params["date_to"] ?? "",
+      minMessages: Number.isFinite(minMsgs) ? minMsgs : 0,
+      maxMessages: Number.isFinite(maxMsgs) ? maxMsgs : 0,
+    };
+    this.activeSessionId = null;
+    this.resetPagination();
+  }
+
   async load() {
     const version = ++this.loadVersion;
     this.loading = true;
-    this.sessions = [];
-    this.nextCursor = null;
-    this.total = 0;
+    this.resetPagination();
     try {
       let cursor: string | undefined = undefined;
       let loaded: Session[] = [];
@@ -63,17 +99,7 @@ class SessionsStore {
       for (;;) {
         if (this.loadVersion !== version) return;
         const page = await api.listSessions({
-          project: this.projectFilter || undefined,
-          agent: this.agentFilter || undefined,
-          date: this.dateFilter || undefined,
-          date_from: this.dateFromFilter || undefined,
-          date_to: this.dateToFilter || undefined,
-          min_messages: this.minMessagesFilter > 0
-            ? this.minMessagesFilter
-            : undefined,
-          max_messages: this.maxMessagesFilter > 0
-            ? this.maxMessagesFilter
-            : undefined,
+          ...this.apiParams,
           cursor,
           limit: SESSION_PAGE_SIZE,
         });
@@ -112,17 +138,7 @@ class SessionsStore {
     this.loading = true;
     try {
       const page = await api.listSessions({
-        project: this.projectFilter || undefined,
-        agent: this.agentFilter || undefined,
-        date: this.dateFilter || undefined,
-        date_from: this.dateFromFilter || undefined,
-        date_to: this.dateToFilter || undefined,
-        min_messages: this.minMessagesFilter > 0
-          ? this.minMessagesFilter
-          : undefined,
-        max_messages: this.maxMessagesFilter > 0
-          ? this.maxMessagesFilter
-          : undefined,
+        ...this.apiParams,
         cursor: this.nextCursor,
         limit: SESSION_PAGE_SIZE,
       });
@@ -198,17 +214,9 @@ class SessionsStore {
   }
 
   setProjectFilter(project: string) {
-    this.projectFilter = project;
-    this.agentFilter = "";
-    this.dateFilter = "";
-    this.dateFromFilter = "";
-    this.dateToFilter = "";
-    this.minMessagesFilter = 0;
-    this.maxMessagesFilter = 0;
+    this.filters = { ...defaultFilters(), project };
     this.activeSessionId = null;
-    this.sessions = [];
-    this.nextCursor = null;
-    this.total = 0;
+    this.resetPagination();
     this.load();
   }
 }

@@ -31,12 +31,15 @@ function mockGetProjects() {
 }
 
 function resetStore() {
-  sessions.projectFilter = "";
-  sessions.dateFilter = "";
-  sessions.dateFromFilter = "";
-  sessions.dateToFilter = "";
-  sessions.minMessagesFilter = 0;
-  sessions.maxMessagesFilter = 0;
+  sessions.filters = {
+    project: "",
+    agent: "",
+    date: "",
+    dateFrom: "",
+    dateTo: "",
+    minMessages: 0,
+    maxMessages: 0,
+  };
   // Reset private state for loadProjects dedup.
   // Access via any to bypass TS visibility.
   (sessions as any).projectsLoaded = false;
@@ -63,8 +66,8 @@ describe("SessionsStore.initFromParams", () => {
       project: "myproj",
       date: "2024-06-15",
     });
-    expect(sessions.projectFilter).toBe("myproj");
-    expect(sessions.dateFilter).toBe("2024-06-15");
+    expect(sessions.filters.project).toBe("myproj");
+    expect(sessions.filters.date).toBe("2024-06-15");
   });
 
   it("should parse date_from and date_to", () => {
@@ -72,18 +75,18 @@ describe("SessionsStore.initFromParams", () => {
       date_from: "2024-06-01",
       date_to: "2024-06-30",
     });
-    expect(sessions.dateFromFilter).toBe("2024-06-01");
-    expect(sessions.dateToFilter).toBe("2024-06-30");
+    expect(sessions.filters.dateFrom).toBe("2024-06-01");
+    expect(sessions.filters.dateTo).toBe("2024-06-30");
   });
 
   it("should parse numeric min_messages", () => {
     sessions.initFromParams({ min_messages: "5" });
-    expect(sessions.minMessagesFilter).toBe(5);
+    expect(sessions.filters.minMessages).toBe(5);
   });
 
   it("should parse numeric max_messages", () => {
     sessions.initFromParams({ max_messages: "100" });
-    expect(sessions.maxMessagesFilter).toBe(100);
+    expect(sessions.filters.maxMessages).toBe(100);
   });
 
   it("should default non-numeric min/max to 0", () => {
@@ -91,16 +94,16 @@ describe("SessionsStore.initFromParams", () => {
       min_messages: "abc",
       max_messages: "",
     });
-    expect(sessions.minMessagesFilter).toBe(0);
-    expect(sessions.maxMessagesFilter).toBe(0);
+    expect(sessions.filters.minMessages).toBe(0);
+    expect(sessions.filters.maxMessages).toBe(0);
   });
 
   it("should default missing params to empty/zero", () => {
     sessions.initFromParams({});
-    expect(sessions.projectFilter).toBe("");
-    expect(sessions.dateFilter).toBe("");
-    expect(sessions.minMessagesFilter).toBe(0);
-    expect(sessions.maxMessagesFilter).toBe(0);
+    expect(sessions.filters.project).toBe("");
+    expect(sessions.filters.date).toBe("");
+    expect(sessions.filters.minMessages).toBe(0);
+    expect(sessions.filters.maxMessages).toBe(0);
   });
 });
 
@@ -112,8 +115,8 @@ describe("SessionsStore.load serialization", () => {
   });
 
   it("should omit min/max_messages when 0", async () => {
-    sessions.minMessagesFilter = 0;
-    sessions.maxMessagesFilter = 0;
+    sessions.filters.minMessages = 0;
+    sessions.filters.maxMessages = 0;
     await sessions.load();
 
     const params = getLastListSessionsParams();
@@ -122,7 +125,7 @@ describe("SessionsStore.load serialization", () => {
   });
 
   it("should include positive min_messages", async () => {
-    sessions.minMessagesFilter = 5;
+    sessions.filters.minMessages = 5;
     await sessions.load();
 
     const params = getLastListSessionsParams();
@@ -130,7 +133,7 @@ describe("SessionsStore.load serialization", () => {
   });
 
   it("should include positive max_messages", async () => {
-    sessions.maxMessagesFilter = 100;
+    sessions.filters.maxMessages = 100;
     await sessions.load();
 
     const params = getLastListSessionsParams();
@@ -138,7 +141,7 @@ describe("SessionsStore.load serialization", () => {
   });
 
   it("should pass project filter when set", async () => {
-    sessions.projectFilter = "myproj";
+    sessions.filters.project = "myproj";
     await sessions.load();
 
     const params = getLastListSessionsParams();
@@ -146,7 +149,7 @@ describe("SessionsStore.load serialization", () => {
   });
 
   it("should omit project when empty", async () => {
-    sessions.projectFilter = "";
+    sessions.filters.project = "";
     await sessions.load();
 
     const params = getLastListSessionsParams();
@@ -196,8 +199,8 @@ describe("SessionsStore.loadMore serialization", () => {
         total: 2,
       });
 
-    sessions.minMessagesFilter = 10;
-    sessions.maxMessagesFilter = 50;
+    sessions.filters.minMessages = 10;
+    sessions.filters.maxMessages = 50;
     await sessions.load();
 
     expect(api.listSessions).toHaveBeenCalledTimes(2);
