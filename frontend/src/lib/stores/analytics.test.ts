@@ -202,15 +202,15 @@ describe("AnalyticsStore.selectDate", () => {
 
     analytics.selectDate("2024-01-15"); // deselect
 
-    expect(api.getAnalyticsSummary).toHaveBeenLastCalledWith(
-      expect.objectContaining({ from: "2024-01-01", to: "2024-01-31" }),
-    );
-    expect(api.getAnalyticsActivity).toHaveBeenLastCalledWith(
-      expect.objectContaining({ from: "2024-01-01", to: "2024-01-31" }),
-    );
-    expect(api.getAnalyticsProjects).toHaveBeenLastCalledWith(
-      expect.objectContaining({ from: "2024-01-01", to: "2024-01-31" }),
-    );
+    const expected = expect.objectContaining({
+      from: "2024-01-01", to: "2024-01-31",
+    });
+    expect(api.getAnalyticsSummary).toHaveBeenCalled();
+    expect(api.getAnalyticsSummary).toHaveBeenLastCalledWith(expected);
+    expect(api.getAnalyticsActivity).toHaveBeenCalled();
+    expect(api.getAnalyticsActivity).toHaveBeenLastCalledWith(expected);
+    expect(api.getAnalyticsProjects).toHaveBeenCalled();
+    expect(api.getAnalyticsProjects).toHaveBeenLastCalledWith(expected);
   });
 });
 
