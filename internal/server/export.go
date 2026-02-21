@@ -297,102 +297,193 @@ const exportTemplateStr = `<!DOCTYPE html>
 <title>{{.Project}} - Agent Session</title>
 <style>
 :root {
-  --bg: #0d1117; --surface: #161b22; --border: #30363d;
-  --text: #e6edf3; --text-muted: #8b949e;
-  --accent: #58a6ff; --agent-accent: #9d7cd8;
-  --user-bg: #1c2128; --assistant-bg: #1a1f26;
-  --tool-bg: #1a2332; --thinking-bg: #1f1a24;
+  --bg-primary: #faf8f5;
+  --bg-surface: #ffffff;
+  --bg-inset: #f0ede8;
+  --border-default: #e5e0db;
+  --border-muted: #ece8e3;
+  --text-primary: #2c2825;
+  --text-secondary: #5c5650;
+  --text-muted: #8c8580;
+  --accent-blue: #2563eb;
+  --accent-purple: #b08d24;
+  --accent-amber: #d97706;
+  --user-bg: #f0f4ff;
+  --assistant-bg: #fdf8ee;
+  --thinking-bg: #fdf6e8;
+  --tool-bg: #fff8f0;
+  --radius-sm: 4px;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", sans-serif;
+  --font-mono: "SF Mono", "Fira Code", "Fira Mono", Menlo,
+    Consolas, monospace;
+  color-scheme: light;
+}
+:root.dark {
+  --bg-primary: #0a0a0a;
+  --bg-surface: #141414;
+  --bg-inset: #0e0e0e;
+  --border-default: #262626;
+  --border-muted: #1e1e1e;
+  --text-primary: #e0e0e0;
+  --text-secondary: #a0a0a0;
+  --text-muted: #666666;
+  --accent-blue: #60a5fa;
+  --accent-purple: #c9a84c;
+  --accent-amber: #fbbf24;
+  --user-bg: #0f1724;
+  --assistant-bg: #1a1708;
+  --thinking-bg: #1e1a0c;
+  --tool-bg: #1a1508;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
-  font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
-  background: var(--bg); color: var(--text); line-height: 1.5;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 header {
-  background: var(--surface); border-bottom: 1px solid var(--border);
-  padding: 16px 24px; position: sticky; top: 0; z-index: 100;
+  background: var(--bg-surface);
+  border-bottom: 1px solid var(--border-default);
+  padding: 12px 24px;
+  position: sticky; top: 0; z-index: 100;
 }
 .header-content {
   max-width: 900px; margin: 0 auto;
   display: flex; align-items: center;
   justify-content: space-between; gap: 12px;
 }
-h1 { font-size: 1.1rem; font-weight: 600; }
+h1 { font-size: 14px; font-weight: 600; }
 .session-meta {
-  font-size: 0.8rem; color: var(--text-muted);
+  font-size: 11px; color: var(--text-muted);
   display: flex; gap: 12px;
 }
-main { max-width: 900px; margin: 0 auto; padding: 24px; }
-.messages { display: flex; flex-direction: column; gap: 16px; }
+.controls { display: flex; gap: 8px; }
+main { max-width: 900px; margin: 0 auto; padding: 16px; }
+.messages {
+  display: flex; flex-direction: column; gap: 8px;
+}
 .message {
-  padding: 16px; border-radius: 8px;
-  border: 1px solid var(--border);
+  border-left: 3px solid;
+  padding: 8px 16px;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
 }
 .message.user {
-  background: var(--user-bg); border-left: 3px solid var(--accent);
+  background: var(--user-bg);
+  border-left-color: var(--accent-blue);
 }
 .message.assistant {
   background: var(--assistant-bg);
-  border-left: 3px solid var(--agent-accent);
+  border-left-color: var(--accent-purple);
 }
 .message-header {
-  display: flex; justify-content: space-between;
-  margin-bottom: 8px; font-size: 0.8rem;
+  display: flex; align-items: center; gap: 8px;
+  margin-bottom: 4px;
 }
 .message-role {
-  font-weight: 600; text-transform: uppercase;
-  letter-spacing: 0.5px;
+  font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: 0.03em;
 }
-.message.user .message-role { color: var(--accent); }
-.message.assistant .message-role { color: var(--agent-accent); }
-.message-time { color: var(--text-muted); }
+.message.user .message-role { color: var(--accent-blue); }
+.message.assistant .message-role {
+  color: var(--accent-purple);
+}
+.message-time {
+  font-size: 10px; color: var(--text-muted);
+}
 .message-content {
-  white-space: pre-wrap; word-break: break-word; font-size: 0.9rem;
+  font-family: var(--font-mono); font-size: 13px;
+  line-height: 1.6; color: var(--text-primary);
+  white-space: pre-wrap; word-break: break-word;
 }
 .message-content pre {
-  background: var(--bg); padding: 12px;
-  border-radius: 6px; overflow-x: auto; margin: 12px 0;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-sm);
+  padding: 8px 12px; overflow-x: auto;
+  margin: 4px 0; font-size: 11px;
+}
+.message-content code {
+  font-family: var(--font-mono); font-size: 0.9em;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-muted);
+  border-radius: 3px; padding: 0.15em 0.35em;
+}
+.message-content pre code {
+  background: none; border: none;
+  padding: 0; font-size: inherit;
 }
 .thinking-block {
+  border-left: 3px solid var(--accent-purple);
   background: var(--thinking-bg);
-  border-left: 2px solid #8b5cf6;
-  padding: 12px; margin: 8px 0; border-radius: 4px;
-  font-style: italic; color: var(--text-muted); display: none;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 4px 12px 8px; margin: 4px 0;
+  font-style: italic; color: var(--text-secondary);
+  font-size: 12px; line-height: 1.6; display: none;
 }
 .thinking-label {
-  font-size: 0.75rem; font-weight: 600; color: #8b5cf6;
-  text-transform: uppercase; margin-bottom: 4px; font-style: normal;
+  font-size: 10px; font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  margin-bottom: 2px; font-style: normal;
 }
 .message.thinking-only { display: none; }
-#thinking-toggle:checked ~ main .thinking-block { display: block; }
+#thinking-toggle:checked ~ main .thinking-block {
+  display: block;
+}
 #thinking-toggle:checked ~ main .message.thinking-only {
   display: block;
 }
 .tool-block {
+  border-left: 3px solid var(--accent-amber);
   background: var(--tool-bg);
-  border-left: 2px solid #d29922;
-  padding: 8px 12px; margin: 8px 0; border-radius: 4px;
-  font-size: 0.85rem;
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  padding: 4px 8px; margin: 4px 0;
+  font-size: 11px; color: var(--text-secondary);
 }
 #sort-toggle:checked ~ main .messages {
   flex-direction: column-reverse;
 }
-.toggle-input { position: absolute; opacity: 0; pointer-events: none; }
+.toggle-input {
+  position: absolute; opacity: 0; pointer-events: none;
+}
 .toggle-label {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 12px; background: #21262d;
-  border: 1px solid var(--border); border-radius: 6px;
-  color: var(--text); cursor: pointer; font-size: 0.85rem;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer; font-size: 11px;
 }
 .toggle-input:checked + .toggle-label {
-  background: #388bfd; border-color: var(--accent);
+  background: var(--accent-blue); color: #fff;
+  border-color: var(--accent-blue);
 }
+.theme-btn {
+  padding: 4px 10px;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  cursor: pointer; font-size: 11px;
+  font-family: var(--font-sans);
+}
+.theme-btn:hover { background: var(--border-default); }
 footer {
   max-width: 900px; margin: 40px auto; padding: 16px 24px;
-  border-top: 1px solid var(--border); font-size: 0.8rem;
-  color: var(--text-muted); text-align: center;
+  border-top: 1px solid var(--border-default);
+  font-size: 11px; color: var(--text-muted);
+  text-align: center;
 }
-footer a { color: var(--accent); text-decoration: none; }
+footer a {
+  color: var(--accent-blue); text-decoration: none;
+}
+footer a:hover { text-decoration: underline; }
 </style>
 </head>
 <body>
@@ -408,9 +499,10 @@ footer a { color: var(--accent); text-decoration: none; }
     <span>{{.StartedAt}}</span>
   </div>
 </div>
-<div style="display:flex;gap:12px">
+<div class="controls">
   <label for="thinking-toggle" class="toggle-label">Thinking</label>
   <label for="sort-toggle" class="toggle-label">Newest first</label>
+  <button class="theme-btn" onclick="document.documentElement.classList.toggle('dark');this.textContent=document.documentElement.classList.contains('dark')?'Light':'Dark'">Dark</button>
 </div>
 </div>
 </header>
@@ -419,7 +511,7 @@ footer a { color: var(--accent); text-decoration: none; }
 <div class="message {{.RoleClass}}{{.ExtraClass}}"><div class="message-header"><span class="message-role">{{.Role}}</span><span class="message-time">{{.Timestamp}}</span></div><div class="message-content">{{.ContentHTML}}</div></div>
 {{- end}}
 </div></main>
-<footer>Exported from <a href="https://github.com/wesm/agentsview">Agent Session Viewer</a></footer>
+<footer>Exported from <a href="https://github.com/wesm/agentsview">agentsview</a></footer>
 </body></html>`
 
 func generateExportHTML(
