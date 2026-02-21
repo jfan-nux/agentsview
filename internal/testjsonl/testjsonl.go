@@ -135,6 +135,25 @@ func CodexFunctionCallJSON(
 	return mustMarshal(m)
 }
 
+// CodexFunctionCallArgsJSON returns a Codex function_call
+// response_item with arguments payload.
+func CodexFunctionCallArgsJSON(
+	name string, arguments any, timestamp string,
+) string {
+	payload := map[string]any{
+		"type":      "function_call",
+		"name":      name,
+		"call_id":   "call_test",
+		"arguments": arguments,
+	}
+	m := map[string]any{
+		"type":      "response_item",
+		"timestamp": timestamp,
+		"payload":   payload,
+	}
+	return mustMarshal(m)
+}
+
 // JoinJSONL joins JSON lines with newlines and appends a
 // trailing newline.
 func JoinJSONL(lines ...string) string {

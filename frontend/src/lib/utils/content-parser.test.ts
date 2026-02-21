@@ -108,6 +108,15 @@ describe("parseContent", () => {
     });
   });
 
+  it("parses codex tool markers and normalizes label", () => {
+    const segments = parseContent("[exec_command]\n$ rg --files");
+    expect(segments[0]).toEqual({
+      type: "tool",
+      content: "$ rg --files",
+      label: "Bash",
+    });
+  });
+
   it("drops overlapping matches", () => {
     const text = "[Thinking]\nI think\n[Bash]\necho ok";
     const segments = parseContent(text);
@@ -170,6 +179,14 @@ describe("isToolOnly", () => {
     const msg = makeMsg({
       has_tool_use: true,
       content: "[Thinking]\nhmm\n[Bash]\necho hi",
+    });
+    expect(isToolOnly(msg)).toBe(true);
+  });
+
+  it("treats codex markers as tool-only content", () => {
+    const msg = makeMsg({
+      has_tool_use: true,
+      content: "[exec_command]\n$ pwd",
     });
     expect(isToolOnly(msg)).toBe(true);
   });

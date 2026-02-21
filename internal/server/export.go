@@ -570,7 +570,8 @@ var (
 	toolBlockRe = regexp.MustCompile(
 		`(?s)\[(Tool|Read|Write|Edit|Bash|Glob|Grep|Task|` +
 			`Question|Todo List|Entering Plan Mode|` +
-			`Exiting Plan Mode)([^\]]*)\](.*?)(?:\n\[|\n\n|$)`)
+			`Exiting Plan Mode|exec_command|shell_command|` +
+			`write_stdin|apply_patch|shell)([^\]]*)\](.*?)(?:\n\[|\n\n|$)`)
 )
 
 func formatContentForExport(text string) string {

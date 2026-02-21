@@ -20,7 +20,17 @@ const THINKING_RE =
 const TOOL_NAMES =
   "Tool|Read|Write|Edit|Bash|Glob|Grep|Task|" +
   "Question|Todo List|Entering Plan Mode|" +
-  "Exiting Plan Mode";
+  "Exiting Plan Mode|exec_command|shell_command|" +
+  "write_stdin|apply_patch|shell|parallel|view_image|" +
+  "request_user_input|update_plan";
+
+const TOOL_ALIASES: Record<string, string> = {
+  exec_command: "Bash",
+  shell_command: "Bash",
+  write_stdin: "Bash",
+  shell: "Bash",
+  apply_patch: "Edit",
+};
 
 const TOOL_RE = new RegExp(
   `\\[(${TOOL_NAMES})([^\\]]*)\\]([\\s\\S]*?)(?=\\n\\[|\\n\\n|$)`,
@@ -76,9 +86,10 @@ function extractMatches(text: string): Match[] {
   for (const m of text.matchAll(TOOL_RE)) {
     const toolName = m[1] ?? "";
     const toolArgs = (m[2] ?? "").trim();
+    const displayName = TOOL_ALIASES[toolName] ?? toolName;
     const label = toolArgs
-      ? `${toolName} ${toolArgs}`
-      : toolName;
+      ? `${displayName} ${toolArgs}`
+      : displayName;
     matches.push({
       start: m.index!,
       end: m.index! + m[0].length,

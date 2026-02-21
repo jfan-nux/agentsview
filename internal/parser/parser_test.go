@@ -930,7 +930,7 @@ func TestParseCodexSession(t *testing.T) {
 				assertToolCalls(t, msgs[1].ToolCalls, []ParsedToolCall{
 					{ToolName: "shell_command", Category: "Bash"},
 				})
-				if msgs[1].Content != "[shell_command: Running tests]" {
+				if msgs[1].Content != "[Bash: Running tests]" {
 					t.Errorf("msgs[1].Content = %q", msgs[1].Content)
 				}
 				// apply_patch
@@ -998,9 +998,59 @@ func TestParseCodexSession(t *testing.T) {
 			wantMsgs: 2,
 			check: func(t *testing.T, _ *ParsedSession, msgs []ParsedMessage) {
 				t.Helper()
-				if msgs[1].Content != "[exec_command]" {
+				if msgs[1].Content != "[Bash]" {
 					t.Errorf("content = %q, want %q",
-						msgs[1].Content, "[exec_command]")
+						msgs[1].Content, "[Bash]")
+				}
+			},
+		},
+		{
+			name: "exec_command arguments include command detail",
+			content: testjsonl.JoinJSONL(
+				testjsonl.CodexSessionMetaJSON("fc-args-1", "/tmp", "user", tsEarly),
+				testjsonl.CodexMsgJSON("user", "inspect files", tsEarlyS1),
+				testjsonl.CodexFunctionCallArgsJSON(
+					"exec_command",
+					`{"cmd":"rg --files","workdir":"/tmp"}`,
+					tsEarlyS5,
+				),
+			),
+			wantID:   "codex:fc-args-1",
+			wantMsgs: 2,
+			check: func(t *testing.T, _ *ParsedSession, msgs []ParsedMessage) {
+				t.Helper()
+				if msgs[1].Content != "[Bash]\n$ rg --files" {
+					t.Errorf("content = %q", msgs[1].Content)
+				}
+			},
+		},
+		{
+			name: "apply_patch arguments summarize edited files",
+			content: testjsonl.JoinJSONL(
+				testjsonl.CodexSessionMetaJSON("fc-args-2", "/tmp", "user", tsEarly),
+				testjsonl.CodexMsgJSON("user", "apply patch", tsEarlyS1),
+				testjsonl.CodexFunctionCallArgsJSON(
+					"apply_patch",
+					map[string]any{
+						"patch": strings.Join([]string{
+							"*** Begin Patch",
+							"*** Update File: internal/parser/codex.go",
+							"*** Update File: internal/parser/parser_test.go",
+							"*** End Patch",
+						}, "\n"),
+					},
+					tsEarlyS5,
+				),
+			),
+			wantID:   "codex:fc-args-2",
+			wantMsgs: 2,
+			check: func(t *testing.T, _ *ParsedSession, msgs []ParsedMessage) {
+				t.Helper()
+				want := "[Edit: internal/parser/codex.go (+1 more)]\n" +
+					"internal/parser/codex.go\ninternal/parser/parser_test.go"
+				if msgs[1].Content != want {
+					t.Errorf("content = %q, want %q",
+						msgs[1].Content, want)
 				}
 			},
 		},
