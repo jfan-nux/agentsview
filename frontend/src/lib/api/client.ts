@@ -129,9 +129,11 @@ export function search(
     limit?: number;
     cursor?: number;
   } = {},
+  init?: RequestInit,
 ): Promise<SearchResponse> {
   return fetchJSON(
     `/search${buildQuery({ q: query, ...params })}`,
+    init,
   );
 }
 

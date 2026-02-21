@@ -27,6 +27,10 @@ function makeSearchResponse(
   };
 }
 
+function abortError(): DOMException {
+  return new DOMException("The operation was aborted", "AbortError");
+}
+
 describe("SearchStore", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -38,15 +42,18 @@ describe("SearchStore", () => {
     vi.useRealTimers();
   });
 
-  it("should ignore stale in-flight search after version bump", async () => {
-    // First search: slow, will be stale by the time it resolves
-    let resolveFirst!: (v: SearchResponse) => void;
-    const firstPromise = new Promise<SearchResponse>((r) => {
-      resolveFirst = r;
-    });
-    vi.mocked(api.search).mockReturnValueOnce(firstPromise);
+  it("should abort stale in-flight search when a new one starts", async () => {
+    // First search: slow, will be aborted
+    vi.mocked(api.search).mockImplementationOnce(
+      (_q, _p, init) =>
+        new Promise((resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(abortError());
+          });
+        }),
+    );
 
-    // Second search: fast
+    // Second search: resolves immediately
     vi.mocked(api.search).mockResolvedValueOnce(
       makeSearchResponse("world", 2),
     );
@@ -55,30 +62,28 @@ describe("SearchStore", () => {
     searchStore.search("hello");
     vi.advanceTimersByTime(300);
 
-    // Trigger second search (bumps version, invalidating first)
+    // Trigger second search (aborts first)
     searchStore.search("world");
     vi.advanceTimersByTime(300);
 
-    // Wait for second search to complete
+    // Wait for all async work
     await vi.runAllTimersAsync();
-    // Flush microtasks
     await Promise.resolve();
 
-    // Now resolve the first (stale) search
-    resolveFirst(makeSearchResponse("hello", 5));
-    await Promise.resolve();
-
-    // Results should be from the second search, not the first
+    // Results should be from the second search
     expect(searchStore.results.length).toBe(2);
     expect(searchStore.isSearching).toBe(false);
   });
 
-  it("should ignore stale in-flight search after clear()", async () => {
-    let resolveSearch!: (v: SearchResponse) => void;
-    const searchPromise = new Promise<SearchResponse>((r) => {
-      resolveSearch = r;
-    });
-    vi.mocked(api.search).mockReturnValueOnce(searchPromise);
+  it("should abort in-flight search on clear()", async () => {
+    vi.mocked(api.search).mockImplementationOnce(
+      (_q, _p, init) =>
+        new Promise((resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(abortError());
+          });
+        }),
+    );
 
     // Trigger search
     searchStore.search("hello");
@@ -86,9 +91,6 @@ describe("SearchStore", () => {
 
     // Clear while search is in-flight
     searchStore.clear();
-
-    // Resolve the stale search
-    resolveSearch(makeSearchResponse("hello", 5));
     await Promise.resolve();
 
     // Results should remain empty after clear
@@ -97,7 +99,7 @@ describe("SearchStore", () => {
     expect(searchStore.isSearching).toBe(false);
   });
 
-  it("should not apply old results when query changes during debounce", async () => {
+  it("should debounce rapid queries and only fire the last one", async () => {
     vi.mocked(api.search).mockResolvedValueOnce(
       makeSearchResponse("final", 3),
     );
@@ -118,6 +120,7 @@ describe("SearchStore", () => {
     expect(api.search).toHaveBeenCalledWith(
       "final",
       expect.objectContaining({ limit: 30 }),
+      expect.objectContaining({ signal: expect.any(AbortSignal) }),
     );
     expect(searchStore.results.length).toBe(3);
   });
@@ -135,15 +138,18 @@ describe("SearchStore", () => {
     expect(api.search).not.toHaveBeenCalled();
   });
 
-  it("should not set isSearching to false if a newer search is in-flight", async () => {
-    // First search: will resolve but be stale
-    let resolveFirst!: (v: SearchResponse) => void;
-    const firstPromise = new Promise<SearchResponse>((r) => {
-      resolveFirst = r;
-    });
-    vi.mocked(api.search).mockReturnValueOnce(firstPromise);
+  it("should keep isSearching true while a newer search is pending", async () => {
+    // First search: aborted when second starts
+    vi.mocked(api.search).mockImplementationOnce(
+      (_q, _p, init) =>
+        new Promise((resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => {
+            reject(abortError());
+          });
+        }),
+    );
 
-    // Second search: hangs
+    // Second search: hangs until resolved
     let resolveSecond!: (v: SearchResponse) => void;
     const secondPromise = new Promise<SearchResponse>((r) => {
       resolveSecond = r;
@@ -154,15 +160,12 @@ describe("SearchStore", () => {
     searchStore.search("first");
     vi.advanceTimersByTime(300);
 
-    // Trigger second search
+    // Trigger second search (aborts first)
     searchStore.search("second");
     vi.advanceTimersByTime(300);
-
-    // Resolve first (stale) search
-    resolveFirst(makeSearchResponse("first", 1));
     await Promise.resolve();
 
-    // isSearching should still be true (second search is still in-flight)
+    // isSearching should be true (second search is in-flight)
     expect(searchStore.isSearching).toBe(true);
 
     // Resolve second search
@@ -171,5 +174,23 @@ describe("SearchStore", () => {
 
     expect(searchStore.isSearching).toBe(false);
     expect(searchStore.results.length).toBe(2);
+  });
+
+  it("should pass signal to api.search", async () => {
+    vi.mocked(api.search).mockResolvedValueOnce(
+      makeSearchResponse("test", 1),
+    );
+
+    searchStore.search("test");
+    vi.advanceTimersByTime(300);
+
+    await vi.runAllTimersAsync();
+    await Promise.resolve();
+
+    expect(api.search).toHaveBeenCalledWith(
+      "test",
+      { project: undefined, limit: 30 },
+      { signal: expect.any(AbortSignal) },
+    );
   });
 });
