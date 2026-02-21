@@ -14,6 +14,10 @@ export class SessionsPage {
   readonly projectSelect: Locator;
   readonly sessionListHeader: Locator;
 
+  readonly analyticsPage: Locator;
+  readonly analyticsToolbar: Locator;
+  readonly exportBtn: Locator;
+
   constructor(readonly page: Page) {
     this.sessionItems = page.locator("button.session-item");
     this.messageRows = page.locator(".virtual-row");
@@ -21,6 +25,9 @@ export class SessionsPage {
     this.sortButton = page.getByLabel("Toggle sort order");
     this.projectSelect = page.locator("select.project-select");
     this.sessionListHeader = page.locator(".session-list-header");
+    this.analyticsPage = page.locator(".analytics-page");
+    this.analyticsToolbar = page.locator(".analytics-toolbar");
+    this.exportBtn = page.locator(".export-btn");
   }
 
   async goto() {
@@ -60,5 +67,13 @@ export class SessionsPage {
 
   async clearProjectFilter() {
     await this.projectSelect.selectOption("");
+  }
+
+  async pressNextSessionShortcut() {
+    await this.page.keyboard.press("]");
+  }
+
+  async pressPreviousSessionShortcut() {
+    await this.page.keyboard.press("[");
   }
 }

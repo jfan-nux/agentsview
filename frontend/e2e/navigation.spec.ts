@@ -13,7 +13,7 @@ test.describe("Navigation", () => {
     await sp.sessionItems.first().click();
     await expect(sp.sessionItems.first()).toHaveClass(/active/);
 
-    await sp.page.keyboard.press("]");
+    await sp.pressNextSessionShortcut();
     await expect(sp.sessionItems.nth(1)).toHaveClass(/active/);
   });
 
@@ -21,18 +21,13 @@ test.describe("Navigation", () => {
     await sp.sessionItems.nth(1).click();
     await expect(sp.sessionItems.nth(1)).toHaveClass(/active/);
 
-    await sp.page.keyboard.press("[");
+    await sp.pressPreviousSessionShortcut();
     await expect(sp.sessionItems.first()).toHaveClass(/active/);
   });
 
   test("analytics page shows when no session selected", async () => {
-    const analytics = sp.page.locator(".analytics-page");
-    await expect(analytics).toBeVisible();
-    await expect(
-      sp.page.locator(".analytics-toolbar"),
-    ).toBeVisible();
-    await expect(
-      sp.page.locator(".export-btn"),
-    ).toContainText("Export CSV");
+    await expect(sp.analyticsPage).toBeVisible();
+    await expect(sp.analyticsToolbar).toBeVisible();
+    await expect(sp.exportBtn).toContainText("Export CSV");
   });
 });
