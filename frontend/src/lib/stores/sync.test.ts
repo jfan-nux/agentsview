@@ -2,92 +2,35 @@ import { describe, it, expect } from "vitest";
 import { commitsDisagree } from "./sync.svelte.js";
 
 describe("commitsDisagree", () => {
-  it("returns false when both are unknown", () => {
-    expect(commitsDisagree("unknown", "unknown")).toBe(false);
-  });
+  it.each([
+    // Unknown / undefined handling
+    [false, "unknown", "unknown", "both are unknown"],
+    [false, "unknown", "abc1234", "frontend is unknown"],
+    [false, "abc1234", "unknown", "server is unknown"],
+    [false, undefined, "abc1234", "first hash is undefined"],
+    [false, "abc1234", undefined, "second hash is undefined"],
+    [false, undefined, undefined, "both hashes are undefined"],
 
-  it("returns false when frontend is unknown", () => {
-    expect(commitsDisagree("unknown", "abc1234")).toBe(false);
-  });
+    // Empty strings
+    [false, "", "abc1234", "first hash is empty"],
+    [false, "abc1234", "", "second hash is empty"],
+    [false, "", "", "both hashes are empty"],
 
-  it("returns false when server is unknown", () => {
-    expect(commitsDisagree("abc1234", "unknown")).toBe(false);
-  });
+    // Matches
+    [false, "abc1234", "abc1234", "identical short hashes"],
+    [false, "abc1234", "abc1234def5678", "short matches full SHA prefix"],
+    [false, "abc1234aaaaaaaaaaaa", "abc1234aaaaaaaaaaaa", "identical full SHAs"],
+    [false, "abc12", "abc1234def5678", "short abbreviation matching prefix"],
 
-  it("returns false for identical short hashes", () => {
-    expect(commitsDisagree("abc1234", "abc1234")).toBe(false);
-  });
-
-  it("returns false when short matches full SHA prefix", () => {
-    expect(
-      commitsDisagree("abc1234", "abc1234def5678"),
-    ).toBe(false);
-  });
-
-  it("returns true for different hashes", () => {
-    expect(commitsDisagree("abc1234", "def5678")).toBe(true);
-  });
-
-  it("returns true for full SHAs that differ", () => {
-    expect(
-      commitsDisagree(
-        "abc1234aaaaaaaaaaaa",
-        "def5678bbbbbbbbbbb",
-      ),
-    ).toBe(true);
-  });
-
-  it("returns true for full SHAs sharing 7-char prefix", () => {
-    expect(
-      commitsDisagree(
-        "abc1234aaaaaaaaaaaa",
-        "abc1234bbbbbbbbbbb",
-      ),
-    ).toBe(true);
-  });
-
-  it("returns false for identical full SHAs", () => {
-    expect(
-      commitsDisagree(
-        "abc1234aaaaaaaaaaaa",
-        "abc1234aaaaaaaaaaaa",
-      ),
-    ).toBe(false);
-  });
-
-  it("returns false for short abbreviation matching prefix", () => {
-    expect(
-      commitsDisagree("abc12", "abc1234def5678"),
-    ).toBe(false);
-  });
-
-  it("returns true for short abbreviation not matching", () => {
-    expect(
-      commitsDisagree("xyz99", "abc1234def5678"),
-    ).toBe(true);
-  });
-
-  it("returns false when first hash is empty", () => {
-    expect(commitsDisagree("", "abc1234")).toBe(false);
-  });
-
-  it("returns false when second hash is empty", () => {
-    expect(commitsDisagree("abc1234", "")).toBe(false);
-  });
-
-  it("returns false when both hashes are empty", () => {
-    expect(commitsDisagree("", "")).toBe(false);
-  });
-
-  it("returns false when first hash is undefined", () => {
-    expect(commitsDisagree(undefined, "abc1234")).toBe(false);
-  });
-
-  it("returns false when second hash is undefined", () => {
-    expect(commitsDisagree("abc1234", undefined)).toBe(false);
-  });
-
-  it("returns false when both hashes are undefined", () => {
-    expect(commitsDisagree(undefined, undefined)).toBe(false);
-  });
+    // Mismatches
+    [true, "abc1234", "def5678", "different hashes"],
+    [true, "abc1234aaaaaaaaaaaa", "def5678bbbbbbbbbbb", "full SHAs differ"],
+    [true, "abc1234aaaaaaaaaaaa", "abc1234bbbbbbbbbbb", "full SHAs share 7-char prefix"],
+    [true, "xyz99", "abc1234def5678", "short abbreviation not matching"],
+  ] as const)(
+    "returns %s when %s",
+    (expected, hash1, hash2, _scenario) => {
+      expect(commitsDisagree(hash1, hash2)).toBe(expected);
+    },
+  );
 });
