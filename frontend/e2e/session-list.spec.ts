@@ -1,6 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { SessionsPage } from "./pages/sessions-page";
 
+// Test-fixture assumptions: project-alpha has 2 sessions,
+// project-beta has 3, totalling 8 sessions across all projects.
+const TOTAL_SESSIONS = 8;
+const ALPHA_SESSIONS = 2;
+const BETA_SESSIONS = 3;
+
 test.describe("Session list", () => {
   let sp: SessionsPage;
 
@@ -10,7 +16,7 @@ test.describe("Session list", () => {
   });
 
   test("sessions load and display", async () => {
-    expect(await sp.sessionItems.count()).toBe(8);
+    await expect(sp.sessionItems).toHaveCount(TOTAL_SESSIONS);
   });
 
   test("session count header is visible", async () => {
@@ -23,27 +29,26 @@ test.describe("Session list", () => {
     await expect(sp.sessionItems.first()).toHaveClass(/active/);
   });
 
-  test("project filter changes do not blank virtualized list", async () => {
-    const filterCases = [
-      { project: "project-alpha", expectedCount: 2 },
-      { project: "project-beta", expectedCount: 3 },
-      { project: "", expectedCount: 8 },
-    ];
+  const filterCases = [
+    { project: "project-alpha", expectedCount: ALPHA_SESSIONS },
+    { project: "project-beta", expectedCount: BETA_SESSIONS },
+    { project: "", expectedCount: TOTAL_SESSIONS },
+  ];
 
-    for (const { project, expectedCount } of filterCases) {
-      const label = project || "all";
-      await test.step(`filter by ${label}`, async () => {
-        if (project) {
-          await sp.filterByProject(project);
-        } else {
-          await sp.clearProjectFilter();
-        }
-        await expect(sp.sessionItems.first()).toBeVisible();
-        await expect(sp.sessionListHeader).toContainText(
-          `${expectedCount} sessions`,
-        );
-        await expect(sp.sessionItems).toHaveCount(expectedCount);
-      });
-    }
-  });
+  for (const { project, expectedCount } of filterCases) {
+    const label = project || "all";
+
+    test(`filtering by ${label} shows ${expectedCount} sessions`, async () => {
+      if (project) {
+        await sp.filterByProject(project);
+      } else {
+        await sp.clearProjectFilter();
+      }
+      await expect(sp.sessionItems.first()).toBeVisible();
+      await expect(sp.sessionListHeader).toContainText(
+        `${expectedCount} sessions`,
+      );
+      await expect(sp.sessionItems).toHaveCount(expectedCount);
+    });
+  }
 });
