@@ -28,9 +28,9 @@ test.describe("Message loading", () => {
     );
     expect(settled).toBe(true);
 
-    // For the 5500-message session: 1000 first batch + 9x500
-    // remaining = 10 requests max. With the reactive loop bug,
-    // this would be dozens of parallel requests.
+    // For large sessions we may fetch several pages while loading
+    // into memory. With the reactive loop bug, this would be
+    // dozens of parallel requests.
     expect(messageRequests.length).toBeLessThanOrEqual(15);
   });
 
@@ -41,7 +41,7 @@ test.describe("Message loading", () => {
   });
 
   test(
-    "large session shows first batch quickly",
+    "large session shows first page quickly",
     async ({ page }) => {
       const sp = new SessionsPage(page);
       await sp.goto();
@@ -49,7 +49,7 @@ test.describe("Message loading", () => {
       // First session is the largest (5500 messages)
       await sp.sessionItems.first().click();
 
-      // First batch should render within 3s
+      // First page should render within 3s
       await expect(sp.messageRows.first()).toBeVisible({
         timeout: 3_000,
       });

@@ -1,21 +1,18 @@
 <script lang="ts">
-  import { onDestroy, untrack } from "svelte";
+  import { onDestroy } from "svelte";
   import { sessions } from "../../stores/sessions.svelte.js";
   import SessionItem from "./SessionItem.svelte";
   import { formatNumber } from "../../utils/format.js";
 
   const ITEM_HEIGHT = 40;
   const OVERSCAN = 10;
-  const LOAD_AHEAD = 50;
 
   let containerRef: HTMLDivElement | undefined = $state(undefined);
   let scrollTop = $state(0);
   let viewportHeight = $state(0);
   let scrollRaf: number | null = $state(null);
 
-  let totalCount = $derived(
-    Math.max(sessions.total, sessions.sessions.length),
-  );
+  let totalCount = $derived(sessions.sessions.length);
 
   let startIndex = $derived(
     Math.max(
@@ -76,22 +73,6 @@
     }
   });
 
-  // Keep fetching pages until the visible window is backed by
-  // loaded sessions. This allows large scrollbar jumps to recover
-  // without requiring repeated manual scroll events.
-  $effect(() => {
-    const loaded = sessions.sessions.length;
-    if (loaded === 0) return;
-    if (sessions.loading) return;
-    if (!sessions.nextCursor) return;
-    if (endIndex < loaded - LOAD_AHEAD) return;
-
-    const targetIndex = endIndex + LOAD_AHEAD;
-    untrack(() => {
-      void sessions.loadMoreUntil(targetIndex);
-    });
-  });
-
   // Throttle scroll position updates to one per frame.
   function handleScroll() {
     if (!containerRef) return;
@@ -100,25 +81,6 @@
       scrollRaf = null;
       if (!containerRef) return;
       scrollTop = containerRef.scrollTop;
-
-      const loaded = sessions.sessions.length;
-      if (loaded === 0) return;
-      if (sessions.loading) return;
-      if (!sessions.nextCursor) return;
-
-      const visibleCount = Math.ceil(
-        containerRef.clientHeight / ITEM_HEIGHT,
-      );
-      const targetIndex =
-        Math.floor(containerRef.scrollTop / ITEM_HEIGHT) +
-        visibleCount +
-        OVERSCAN * 2 +
-        LOAD_AHEAD;
-      if (targetIndex < loaded - LOAD_AHEAD) return;
-
-      untrack(() => {
-        void sessions.loadMoreUntil(targetIndex);
-      });
     });
   }
 
@@ -154,8 +116,6 @@
       >
         {#if session}
           <SessionItem {session} />
-        {:else}
-          <div class="session-placeholder"></div>
         {/if}
       </div>
     {/each}
@@ -180,14 +140,6 @@
 
   .loading-indicator {
     color: var(--accent-green);
-  }
-
-  .session-placeholder {
-    height: 100%;
-    background: var(--bg-secondary, #1e1e1e);
-    opacity: 0.4;
-    border-radius: 4px;
-    margin: 2px 12px;
   }
 
   .session-list-scroll {

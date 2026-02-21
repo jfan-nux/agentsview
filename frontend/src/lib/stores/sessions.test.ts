@@ -160,27 +160,67 @@ describe("SessionsStore.loadMore serialization", () => {
     vi.clearAllMocks();
   });
 
-  it("should pass filters through loadMore", async () => {
-    mockListSessions({ next_cursor: "cur1" });
+  it("should fetch all pages with consistent filters in load()", async () => {
+    vi.mocked(api.listSessions)
+      .mockResolvedValueOnce({
+        sessions: [
+          {
+            id: "s1",
+            project: "proj",
+            machine: "m",
+            agent: "a",
+            first_message: null,
+            started_at: null,
+            ended_at: null,
+            message_count: 1,
+            created_at: "2024-01-01T00:00:00Z",
+          },
+        ],
+        total: 2,
+        next_cursor: "cur1",
+      })
+      .mockResolvedValueOnce({
+        sessions: [
+          {
+            id: "s2",
+            project: "proj",
+            machine: "m",
+            agent: "a",
+            first_message: null,
+            started_at: null,
+            ended_at: null,
+            message_count: 1,
+            created_at: "2024-01-01T00:00:01Z",
+          },
+        ],
+        total: 2,
+      });
+
     sessions.minMessagesFilter = 10;
     sessions.maxMessagesFilter = 50;
     await sessions.load();
 
-    vi.clearAllMocks();
-    mockListSessions();
-    await sessions.loadMore();
+    expect(api.listSessions).toHaveBeenCalledTimes(2);
+    const calls = vi.mocked(api.listSessions).mock.calls;
+    const first = calls[0]?.[0];
+    const second = calls[1]?.[0];
 
-    const params = getLastListSessionsParams();
-    expect(params.min_messages).toBe(10);
-    expect(params.max_messages).toBe(50);
-    expect(params.cursor).toBe("cur1");
+    expect(first?.min_messages).toBe(10);
+    expect(first?.max_messages).toBe(50);
+    expect(first?.cursor).toBeUndefined();
+
+    expect(second?.min_messages).toBe(10);
+    expect(second?.max_messages).toBe(50);
+    expect(second?.cursor).toBe("cur1");
+
+    expect(sessions.sessions).toHaveLength(2);
+    expect(sessions.total).toBe(2);
+    expect(sessions.nextCursor).toBeNull();
   });
 
   it("should omit min/max when 0 in loadMore", async () => {
-    mockListSessions({ next_cursor: "cur2" });
-    await sessions.load();
+    sessions.nextCursor = "cur2";
 
-    vi.clearAllMocks();
     mockListSessions();
     await sessions.loadMore();
 

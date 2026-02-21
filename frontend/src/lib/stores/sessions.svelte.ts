@@ -1,6 +1,8 @@
 import * as api from "../api/client.js";
 import type { Session, ProjectInfo } from "../api/types.js";
 
+const SESSION_PAGE_SIZE = 500;
+
 class SessionsStore {
   sessions: Session[] = $state([]);
   projects: ProjectInfo[] = $state([]);
@@ -51,25 +53,52 @@ class SessionsStore {
   async load() {
     const version = ++this.loadVersion;
     this.loading = true;
+    this.sessions = [];
+    this.nextCursor = null;
+    this.total = 0;
     try {
-      const page = await api.listSessions({
-        project: this.projectFilter || undefined,
-        agent: this.agentFilter || undefined,
-        date: this.dateFilter || undefined,
-        date_from: this.dateFromFilter || undefined,
-        date_to: this.dateToFilter || undefined,
-        min_messages: this.minMessagesFilter > 0
-          ? this.minMessagesFilter
-          : undefined,
-        max_messages: this.maxMessagesFilter > 0
-          ? this.maxMessagesFilter
-          : undefined,
-        limit: 200,
-      });
-      if (this.loadVersion !== version) return;
-      this.sessions = page.sessions;
-      this.nextCursor = page.next_cursor ?? null;
-      this.total = page.total;
+      let cursor: string | undefined = undefined;
+      let loaded: Session[] = [];
+
+      for (;;) {
+        if (this.loadVersion !== version) return;
+        const page = await api.listSessions({
+          project: this.projectFilter || undefined,
+          agent: this.agentFilter || undefined,
+          date: this.dateFilter || undefined,
+          date_from: this.dateFromFilter || undefined,
+          date_to: this.dateToFilter || undefined,
+          min_messages: this.minMessagesFilter > 0
+            ? this.minMessagesFilter
+            : undefined,
+          max_messages: this.maxMessagesFilter > 0
+            ? this.maxMessagesFilter
+            : undefined,
+          cursor,
+          limit: SESSION_PAGE_SIZE,
+        });
+        if (this.loadVersion !== version) return;
+
+        if (page.sessions.length === 0) {
+          this.sessions = loaded;
+          this.nextCursor = null;
+          this.total = loaded.length;
+          break;
+        }
+
+        loaded = [...loaded, ...page.sessions];
+        this.sessions = loaded;
+        // Keep total aligned with loaded rows to avoid blank
+        // virtual space while we fetch remaining pages.
+        this.total = loaded.length;
+
+        cursor = page.next_cursor ?? undefined;
+        this.nextCursor = cursor ?? null;
+        if (!cursor) {
+          this.total = loaded.length;
+          break;
+        }
+      }
     } finally {
       if (this.loadVersion === version) {
         this.loading = false;
@@ -95,7 +124,7 @@ class SessionsStore {
           ? this.maxMessagesFilter
           : undefined,
         cursor: this.nextCursor,
-        limit: 200,
+        limit: SESSION_PAGE_SIZE,
       });
       if (this.loadVersion !== version) return;
       this.sessions.push(...page.sessions);

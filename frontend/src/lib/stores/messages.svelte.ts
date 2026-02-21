@@ -1,8 +1,8 @@
 import * as api from "../api/client.js";
 import type { Message } from "../api/types.js";
 
-const FIRST_BATCH = 1000;
-const BATCH_SIZE = 500;
+const MESSAGE_PAGE_SIZE = 1000;
+const FULL_SESSION_MESSAGE_THRESHOLD = 20_000;
 
 class MessagesStore {
   messages: Message[] = $state([]);
@@ -33,7 +33,24 @@ class MessagesStore {
     this.pendingReload = false;
 
     try {
-      await this.loadProgressively(id);
+      let countHint: number | null = null;
+      try {
+        const sess = await api.getSession(id);
+        if (this.sessionId !== id) return;
+        countHint = sess.message_count ?? 0;
+      } catch {
+        // Best-effort: if this fails we still attempt loading
+        // messages directly.
+      }
+
+      if (
+        countHint !== null &&
+        countHint > FULL_SESSION_MESSAGE_THRESHOLD
+      ) {
+        await this.loadProgressively(id);
+      } else {
+        await this.loadAllMessages(id, countHint ?? undefined);
+      }
     } catch {
       // Non-fatal. Active session may have changed or the
       // source file may be mid-write during sync.
@@ -83,9 +100,48 @@ class MessagesStore {
     this.pendingReload = false;
   }
 
+  private async loadAllMessages(
+    id: string,
+    messageCountHint?: number,
+  ) {
+    let from = 0;
+    let loaded: Message[] = [];
+
+    for (;;) {
+      if (this.sessionId !== id) return;
+      const res = await api.getMessages(id, {
+        from,
+        limit: MESSAGE_PAGE_SIZE,
+        direction: "asc",
+      });
+      if (this.sessionId !== id) return;
+      if (res.messages.length === 0) break;
+
+      loaded = [...loaded, ...res.messages];
+      this.messages = loaded;
+
+      const newest = loaded[loaded.length - 1];
+      this.messageCount = messageCountHint ??
+        (newest ? newest.ordinal + 1 : loaded.length);
+      this.hasOlder = false;
+
+      if (res.messages.length < MESSAGE_PAGE_SIZE) break;
+      const last = res.messages[res.messages.length - 1];
+      if (!last) break;
+      const nextFrom = last.ordinal + 1;
+      if (nextFrom <= from) break;
+      from = nextFrom;
+    }
+
+    const newest = this.messages[this.messages.length - 1];
+    this.messageCount = messageCountHint ??
+      (newest ? newest.ordinal + 1 : this.messages.length);
+    this.hasOlder = false;
+  }
+
   private async loadProgressively(id: string) {
     const firstRes = await api.getMessages(id, {
-      limit: FIRST_BATCH,
+      limit: MESSAGE_PAGE_SIZE,
       direction: "desc",
     });
 
@@ -109,7 +165,7 @@ class MessagesStore {
 
       const res = await api.getMessages(id, {
         from,
-        limit: BATCH_SIZE,
+        limit: MESSAGE_PAGE_SIZE,
         direction: "asc",
       });
 
@@ -118,7 +174,7 @@ class MessagesStore {
 
       this.messages.push(...res.messages);
 
-      if (res.messages.length < BATCH_SIZE) break;
+      if (res.messages.length < MESSAGE_PAGE_SIZE) break;
       from =
         res.messages[res.messages.length - 1]!.ordinal + 1;
     }
@@ -142,7 +198,7 @@ class MessagesStore {
     try {
       const res = await api.getMessages(id, {
         from: oldest - 1,
-        limit: BATCH_SIZE,
+        limit: MESSAGE_PAGE_SIZE,
         direction: "desc",
       });
       if (this.sessionId !== id) return;
@@ -187,7 +243,7 @@ class MessagesStore {
         if (this.sessionId !== id) return;
         const res = await api.getMessages(id, {
           from,
-          limit: BATCH_SIZE,
+          limit: MESSAGE_PAGE_SIZE,
           direction: "desc",
         });
         if (this.sessionId !== id) return;
@@ -252,17 +308,27 @@ class MessagesStore {
 
       // Message count shrank (session rewrite) or we have no local
       // data yet: do a full reload.
-      await this.fullReload(id);
+      await this.fullReload(id, newCount);
     } catch {
       // Non-fatal. SSE watch should keep working and retry on the
       // next update tick.
     }
   }
 
-  private async fullReload(id: string) {
+  private async fullReload(
+    id: string,
+    messageCountHint?: number,
+  ) {
     this.loading = true;
     try {
-      await this.loadProgressively(id);
+      if (
+        messageCountHint !== undefined &&
+        messageCountHint > FULL_SESSION_MESSAGE_THRESHOLD
+      ) {
+        await this.loadProgressively(id);
+      } else {
+        await this.loadAllMessages(id, messageCountHint);
+      }
     } finally {
       if (this.sessionId === id) {
         this.loading = false;

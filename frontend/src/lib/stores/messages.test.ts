@@ -204,45 +204,36 @@ describe('MessagesStore', () => {
     await p1;
   });
 
-  it('should verify ensureOrdinalLoaded fetches older messages until target is met', async () => {
+  it('should no-op ensureOrdinalLoaded when full session is already loaded', async () => {
     // Setup session s1
     vi.mocked(api.getSession).mockResolvedValue(
       makeSession('s1', 20),
     );
     vi.mocked(api.getMinimap).mockResolvedValue(emptyMinimap());
     
-    // Initial load: returns messages 19 down to 10 (DESC)
+    // Full load returns all messages in ascending order.
     vi.mocked(api.getMessages).mockResolvedValueOnce(
       makeMessagesResponse(
         Array.from(
-          { length: 10 },
-          (_, i) => makeMessage(19 - i),
+          { length: 20 },
+          (_, i) => makeMessage(i),
         ),
       ),
     );
 
     await messages.loadSession('s1');
     
-    expect(messages.messages.length).toBe(10);
+    expect(messages.messages.length).toBe(20);
     expect(messages.messages[0]).toBeDefined();
-    expect(messages.messages[0]!.ordinal).toBe(10);
-    expect(messages.hasOlder).toBe(true);
-    
-    // Mock next batch: 9 down to 5 (DESC)
-    vi.mocked(api.getMessages).mockResolvedValueOnce(
-      makeMessagesResponse(
-        Array.from(
-          { length: 5 },
-          (_, i) => makeMessage(9 - i),
-        ),
-      ),
-    );
+    expect(messages.messages[0]!.ordinal).toBe(0);
+    expect(messages.hasOlder).toBe(false);
     
     await messages.ensureOrdinalLoaded(5);
     
-    expect(messages.messages.length).toBe(15);
+    expect(vi.mocked(api.getMessages)).toHaveBeenCalledTimes(1);
+    expect(messages.messages.length).toBe(20);
     expect(messages.messages[0]).toBeDefined();
-    expect(messages.messages[0]!.ordinal).toBe(5);
+    expect(messages.messages[0]!.ordinal).toBe(0);
   });
 
   it('should not clear pending reload of a new session when old session reload finishes', async () => {
@@ -302,7 +293,7 @@ describe('MessagesStore', () => {
     vi.mocked(api.getSession).mockResolvedValue(makeSession('s1', 2));
     vi.mocked(api.getMinimap).mockResolvedValue(emptyMinimap());
     vi.mocked(api.getMessages).mockResolvedValueOnce(
-      makeMessagesResponse([makeMessage(1), makeMessage(0)])
+      makeMessagesResponse([makeMessage(0), makeMessage(1)])
     );
 
     await messages.loadSession('s1');
@@ -321,23 +312,15 @@ describe('MessagesStore', () => {
       makeMessagesResponse([makeMessage(2)])
     );
 
-    // (C) getMinimap (reloadNow)
-    vi.mocked(api.getMinimap).mockResolvedValueOnce(emptyMinimap());
-
-    // (D) getMessages (fullReload -> loadProgressively)
+    // (C) getMessages (fullReload -> loadAllMessages)
     vi.mocked(api.getMessages).mockResolvedValueOnce(
       makeMessagesResponse([
-        makeMessage(3),
-        makeMessage(2),
         makeMessage(1),
         makeMessage(0),
+        makeMessage(2),
+        makeMessage(3),
       ])
     );
-    // (E) getMinimap (fullReload -> loadProgressively)
-    vi.mocked(api.getMinimap).mockResolvedValueOnce(emptyMinimap());
-
-    // (F) getSession (fullReload -> loadProgressively)
-    vi.mocked(api.getSession).mockResolvedValueOnce(makeSession('s1', 4));
 
     await messages.reload();
 
@@ -348,7 +331,7 @@ describe('MessagesStore', () => {
     // Verify full reload fetched all messages
     expect(vi.mocked(api.getMessages)).toHaveBeenLastCalledWith(
       's1',
-      expect.objectContaining({ limit: 1000, direction: 'desc' })
+      expect.objectContaining({ from: 0, limit: 1000, direction: 'asc' })
     );
   });
 
@@ -357,7 +340,7 @@ describe('MessagesStore', () => {
     vi.mocked(api.getSession).mockResolvedValue(makeSession('s1', 2));
     vi.mocked(api.getMinimap).mockResolvedValue(emptyMinimap());
     vi.mocked(api.getMessages).mockResolvedValueOnce(
-      makeMessagesResponse([makeMessage(1), makeMessage(0)])
+      makeMessagesResponse([makeMessage(0), makeMessage(1)])
     );
 
     await messages.loadSession('s1');
@@ -376,21 +359,12 @@ describe('MessagesStore', () => {
       makeMessagesResponse([makeMessage(2)])
     );
 
-    // (C) getMinimap (reloadNow) - returns fast
-    vi.mocked(api.getMinimap).mockResolvedValueOnce(emptyMinimap());
-
-    // (D) getMessages (fullReload -> loadProgressively) - DELAYED
+    // (C) getMessages (fullReload -> loadAllMessages) - DELAYED
     let resolveFullReload!: (val: MessagesResponse) => void;
     const fullReloadPromise = new Promise<MessagesResponse>(resolve => {
         resolveFullReload = resolve;
     });
     vi.mocked(api.getMessages).mockReturnValueOnce(fullReloadPromise as any);
-
-    // (E) getMinimap (fullReload) - queued (loadProgressively awaits Promise.all)
-    vi.mocked(api.getMinimap).mockResolvedValueOnce(emptyMinimap());
-    
-    // (F) getSession (fullReload) - queued
-    vi.mocked(api.getSession).mockResolvedValueOnce(makeSession('s1', 4));
 
     // Start reload
     const reloadPromise = messages.reload();
@@ -406,7 +380,7 @@ describe('MessagesStore', () => {
 
     // Finish full reload
     resolveFullReload(makeMessagesResponse([
-        makeMessage(3), makeMessage(2), makeMessage(1), makeMessage(0)
+        makeMessage(0), makeMessage(1), makeMessage(2), makeMessage(3)
     ]));
 
     await reloadPromise;

@@ -47,25 +47,13 @@ test.describe("Virtual list behavior", () => {
     });
   });
 
-  test("loads more items when scrolling down", async ({ page }) => {
+  test("renders end of list when scrolling down", async ({ page }) => {
     await page.goto("/");
     const list = page.locator(".session-list-scroll");
 
     await expect(page.locator("button.session-item").first()).toBeVisible();
 
-    const requestPromise = page.waitForRequest(
-      (req) =>
-        req.url().includes("/sessions") &&
-        req.url().includes("cursor="),
-    );
-
     await scrollListTo(list, "bottom");
-
-    const request = await requestPromise;
-    expect(request).toBeTruthy();
-
-    const url = new URL(request.url());
-    expect(url.searchParams.get("cursor")).toBeTruthy();
 
     await expect(
       page.getByText(`Hello from session ${TOTAL_SESSIONS - 1}`),
