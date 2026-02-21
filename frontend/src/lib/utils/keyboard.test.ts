@@ -29,6 +29,7 @@ describe("registerShortcuts", () => {
   beforeEach(() => {
     ui.activeModal = null;
     ui.selectedOrdinal = null;
+    sessions.activeSessionId = null;
     navigateMessage = vi.fn();
     cleanup = registerShortcuts({ navigateMessage });
   });

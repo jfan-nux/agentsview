@@ -32,7 +32,10 @@ class UIStore {
         } else {
           root.classList.remove("dark");
         }
-        if (typeof localStorage.setItem === "function") {
+        if (
+          typeof localStorage !== "undefined" &&
+          typeof localStorage.setItem === "function"
+        ) {
           localStorage.setItem("theme", this.theme);
         }
       });

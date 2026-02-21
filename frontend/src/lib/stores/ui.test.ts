@@ -102,21 +102,46 @@ describe("UIStore", () => {
 
   describe("theme initialization", () => {
     it("should fall back to light when stored theme is absent", () => {
-      // The singleton was already constructed with the
-      // readStoredTheme() helper. When localStorage returns
-      // null (no stored value), the fallback is "light".
-      // The store should have a valid theme regardless.
       expect(ui.theme).toBeDefined();
       expect(["light", "dark"]).toContain(ui.theme);
     });
 
-    it("should survive when localStorage.getItem is unavailable", () => {
-      // Node 22 exposes a global localStorage object that
-      // lacks the full Storage API. The readStoredTheme()
-      // guard checks typeof localStorage.getItem === "function"
-      // before calling it. The store constructed without error
-      // confirms the guard works.
-      expect(ui.theme).toBe("light");
+    it("should survive when localStorage.getItem is unavailable", async () => {
+      const original = globalThis.localStorage;
+      // Replace with an object that lacks getItem/setItem
+      Object.defineProperty(globalThis, "localStorage", {
+        value: {},
+        writable: true,
+        configurable: true,
+      });
+      try {
+        // @ts-expect-error -- query string busts module cache
+        const mod = await import("./ui.svelte.js?noGetItem");
+        expect(mod.ui.theme).toBe("light");
+      } finally {
+        Object.defineProperty(globalThis, "localStorage", {
+          value: original,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
+
+    it("should survive when localStorage is undefined", async () => {
+      const original = globalThis.localStorage;
+      // @ts-expect-error -- deliberately removing localStorage
+      delete globalThis.localStorage;
+      try {
+        // @ts-expect-error -- query string busts module cache
+        const mod = await import("./ui.svelte.js?noStorage");
+        expect(mod.ui.theme).toBe("light");
+      } finally {
+        Object.defineProperty(globalThis, "localStorage", {
+          value: original,
+          writable: true,
+          configurable: true,
+        });
+      }
     });
   });
 
