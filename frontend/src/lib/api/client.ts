@@ -23,6 +23,9 @@ import type {
   VelocityResponse,
   ToolsAnalyticsResponse,
   TopSessionsResponse,
+  Granularity,
+  HeatmapMetric,
+  TopSessionsMetric,
 } from "./types.js";
 
 const BASE = "/api/v1";
@@ -334,7 +337,7 @@ export function getAnalyticsSummary(
 
 export function getAnalyticsActivity(
   params: AnalyticsParams & {
-    granularity?: "day" | "week" | "month";
+    granularity?: Granularity;
   },
 ): Promise<ActivityResponse> {
   return fetchJSON(
@@ -344,7 +347,7 @@ export function getAnalyticsActivity(
 
 export function getAnalyticsHeatmap(
   params: AnalyticsParams & {
-    metric?: "messages" | "sessions";
+    metric?: HeatmapMetric;
   },
 ): Promise<HeatmapResponse> {
   return fetchJSON(
@@ -394,7 +397,7 @@ export function getAnalyticsTools(
 
 export function getAnalyticsTopSessions(
   params: AnalyticsParams & {
-    metric?: "messages" | "duration";
+    metric?: TopSessionsMetric;
   },
 ): Promise<TopSessionsResponse> {
   return fetchJSON(

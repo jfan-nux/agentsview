@@ -1,5 +1,9 @@
 /** Analytics types — match Go structs in internal/db/analytics.go */
 
+export type Granularity = "day" | "week" | "month";
+export type HeatmapMetric = "messages" | "sessions";
+export type TopSessionsMetric = "messages" | "duration";
+
 export interface AgentSummary {
   sessions: number;
   messages: number;

@@ -350,3 +350,130 @@ describe("AnalyticsStore.setProject", () => {
     },
   );
 });
+
+describe("executeFetch concurrency and error handling", () => {
+  it("should set loading true during fetch", async () => {
+    let resolve!: (v: AnalyticsSummary) => void;
+    vi.mocked(api.getAnalyticsSummary).mockReturnValue(
+      new Promise((r) => { resolve = r; }),
+    );
+
+    const p = analytics.fetchSummary();
+    expect(analytics.loading.summary).toBe(true);
+
+    resolve(makeSummary());
+    await p;
+    expect(analytics.loading.summary).toBe(false);
+  });
+
+  it("should clear error on new request", async () => {
+    vi.mocked(api.getAnalyticsSummary)
+      .mockRejectedValueOnce(new Error("fail"));
+    await analytics.fetchSummary();
+    expect(analytics.errors.summary).toBe("fail");
+
+    vi.mocked(api.getAnalyticsSummary)
+      .mockResolvedValueOnce(makeSummary());
+    await analytics.fetchSummary();
+    expect(analytics.errors.summary).toBeNull();
+  });
+
+  it("should set error message on failure", async () => {
+    vi.mocked(api.getAnalyticsSummary)
+      .mockRejectedValueOnce(new Error("network down"));
+
+    await analytics.fetchSummary();
+
+    expect(analytics.errors.summary).toBe("network down");
+    expect(analytics.loading.summary).toBe(false);
+  });
+
+  it("should use fallback message for non-Error throws", async () => {
+    vi.mocked(api.getAnalyticsSummary)
+      .mockRejectedValueOnce("string error");
+
+    await analytics.fetchSummary();
+
+    expect(analytics.errors.summary).toBe("Failed to load");
+  });
+
+  it("should ignore stale success from superseded request", async () => {
+    let resolveFirst!: (v: AnalyticsSummary) => void;
+    vi.mocked(api.getAnalyticsSummary)
+      .mockReturnValueOnce(
+        new Promise((r) => { resolveFirst = r; }),
+      );
+
+    const firstFetch = analytics.fetchSummary();
+
+    const secondData = makeSummary();
+    secondData.total_sessions = 99;
+    vi.mocked(api.getAnalyticsSummary)
+      .mockResolvedValueOnce(secondData);
+    const secondFetch = analytics.fetchSummary();
+
+    await secondFetch;
+    expect(analytics.summary?.total_sessions).toBe(99);
+
+    const staleData = makeSummary();
+    staleData.total_sessions = 1;
+    resolveFirst(staleData);
+    await firstFetch;
+
+    expect(analytics.summary?.total_sessions).toBe(99);
+  });
+
+  it("should ignore stale error from superseded request", async () => {
+    let rejectFirst!: (e: Error) => void;
+    vi.mocked(api.getAnalyticsSummary)
+      .mockReturnValueOnce(
+        new Promise((_r, rej) => { rejectFirst = rej; }),
+      );
+
+    const firstFetch = analytics.fetchSummary();
+
+    const data = makeSummary();
+    vi.mocked(api.getAnalyticsSummary)
+      .mockResolvedValueOnce(data);
+    const secondFetch = analytics.fetchSummary();
+    await secondFetch;
+
+    expect(analytics.errors.summary).toBeNull();
+    expect(analytics.summary).toStrictEqual(data);
+
+    rejectFirst(new Error("stale error"));
+    await firstFetch;
+
+    expect(analytics.errors.summary).toBeNull();
+    expect(analytics.summary).toStrictEqual(data);
+  });
+
+  it("should not clear loading for superseded request", async () => {
+    let resolveFirst!: (v: AnalyticsSummary) => void;
+    vi.mocked(api.getAnalyticsSummary)
+      .mockReturnValueOnce(
+        new Promise((r) => { resolveFirst = r; }),
+      );
+
+    const firstFetch = analytics.fetchSummary();
+
+    let resolveSecond!: (v: AnalyticsSummary) => void;
+    vi.mocked(api.getAnalyticsSummary)
+      .mockReturnValueOnce(
+        new Promise((r) => { resolveSecond = r; }),
+      );
+    const secondFetch = analytics.fetchSummary();
+
+    expect(analytics.loading.summary).toBe(true);
+
+    resolveFirst(makeSummary());
+    await firstFetch;
+
+    // Loading should still be true because second is pending
+    expect(analytics.loading.summary).toBe(true);
+
+    resolveSecond(makeSummary());
+    await secondFetch;
+    expect(analytics.loading.summary).toBe(false);
+  });
+});

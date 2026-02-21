@@ -8,6 +8,9 @@ import type {
   VelocityResponse,
   ToolsAnalyticsResponse,
   TopSessionsResponse,
+  Granularity,
+  HeatmapMetric,
+  TopSessionsMetric,
 } from "../api/types.js";
 import {
   getAnalyticsSummary,
@@ -22,6 +25,7 @@ import {
   type AnalyticsParams,
 } from "../api/client.js";
 
+export type { Granularity, HeatmapMetric, TopSessionsMetric };
 
 function localDateStr(d: Date): string {
   const y = d.getFullYear();
@@ -50,10 +54,6 @@ type Panel =
   | "velocity"
   | "tools"
   | "topSessions";
-
-export type Granularity = "day" | "week" | "month";
-export type HeatmapMetric = "messages" | "sessions";
-export type TopSessionsMetric = "messages" | "duration";
 
 class AnalyticsStore {
   from: string = $state(daysAgo(30));
