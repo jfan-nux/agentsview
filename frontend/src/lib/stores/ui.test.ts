@@ -127,6 +127,26 @@ describe("UIStore", () => {
       }
     });
 
+    it("should survive when localStorage is null", async () => {
+      const original = globalThis.localStorage;
+      Object.defineProperty(globalThis, "localStorage", {
+        value: null,
+        writable: true,
+        configurable: true,
+      });
+      try {
+        // @ts-expect-error -- query string busts module cache
+        const mod = await import("./ui.svelte.js?nullStorage");
+        expect(mod.ui.theme).toBe("light");
+      } finally {
+        Object.defineProperty(globalThis, "localStorage", {
+          value: original,
+          writable: true,
+          configurable: true,
+        });
+      }
+    });
+
     it("should survive when localStorage is undefined", async () => {
       const original = globalThis.localStorage;
       // @ts-expect-error -- deliberately removing localStorage

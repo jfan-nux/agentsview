@@ -8,6 +8,7 @@ type ModalType =
 function readStoredTheme(): Theme | null {
   if (
     typeof localStorage !== "undefined" &&
+    localStorage != null &&
     typeof localStorage.getItem === "function"
   ) {
     return localStorage.getItem("theme") as Theme;
@@ -34,6 +35,7 @@ class UIStore {
         }
         if (
           typeof localStorage !== "undefined" &&
+          localStorage != null &&
           typeof localStorage.setItem === "function"
         ) {
           localStorage.setItem("theme", this.theme);
