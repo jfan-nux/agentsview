@@ -126,7 +126,9 @@ install_from_release() {
         return 1
     fi
 
-    download "${base_url}/SHA256SUMS" "$tmpdir/SHA256SUMS" 2>/dev/null || true
+    if ! download "${base_url}/SHA256SUMS" "$tmpdir/SHA256SUMS"; then
+        error "Failed to download SHA256SUMS. Cannot verify binary integrity."
+    fi
     verify_checksum "$tmpdir/release.tar.gz" "$tmpdir/SHA256SUMS" "$filename"
 
     info "Extracting..."
