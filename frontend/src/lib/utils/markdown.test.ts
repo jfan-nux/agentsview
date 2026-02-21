@@ -3,109 +3,110 @@ import { describe, it, expect } from "vitest";
 import { renderMarkdown } from "./markdown.js";
 
 describe("renderMarkdown", () => {
-  it("renders bold text", () => {
-    expect(renderMarkdown("**bold**")).toContain(
-      "<strong>bold</strong>",
-    );
+  describe("inline formatting", () => {
+    it("renders bold text", () => {
+      expect(renderMarkdown("**bold**")).toBe(
+        "<p><strong>bold</strong></p>\n",
+      );
+    });
+
+    it("renders italic text", () => {
+      expect(renderMarkdown("*italic*")).toBe(
+        "<p><em>italic</em></p>\n",
+      );
+    });
+
+    it("renders inline code", () => {
+      expect(renderMarkdown("`code`")).toBe(
+        "<p><code>code</code></p>\n",
+      );
+    });
+
+    it("renders links", () => {
+      expect(renderMarkdown("[text](https://example.com)")).toBe(
+        '<p><a href="https://example.com">text</a></p>\n',
+      );
+    });
   });
 
-  it("renders italic text", () => {
-    expect(renderMarkdown("*italic*")).toContain(
-      "<em>italic</em>",
-    );
+  describe("block elements", () => {
+    it("renders headings", () => {
+      expect(renderMarkdown("## Heading 2")).toBe(
+        "<h2>Heading 2</h2>\n",
+      );
+    });
+
+    it("renders unordered lists", () => {
+      expect(renderMarkdown("- item one\n- item two")).toBe(
+        "<ul>\n<li>item one</li>\n<li>item two</li>\n</ul>\n",
+      );
+    });
+
+    it("renders ordered lists", () => {
+      expect(renderMarkdown("1. first\n2. second")).toBe(
+        "<ol>\n<li>first</li>\n<li>second</li>\n</ol>\n",
+      );
+    });
+
+    it("renders blockquotes", () => {
+      expect(renderMarkdown("> quoted text")).toBe(
+        "<blockquote>\n<p>quoted text</p>\n</blockquote>\n",
+      );
+    });
+
+    it("renders tables", () => {
+      const md = "| A | B |\n| --- | --- |\n| 1 | 2 |";
+      expect(renderMarkdown(md)).toBe(
+        "<table>\n<thead>\n<tr>\n<th>A</th>\n<th>B</th>\n</tr>\n" +
+          "</thead>\n<tbody><tr>\n<td>1</td>\n<td>2</td>\n</tr>\n" +
+          "</tbody></table>\n",
+      );
+    });
+
+    it("renders horizontal rules", () => {
+      expect(renderMarkdown("---")).toBe("<hr>\n");
+    });
+
+    it("converts single newlines to <br>", () => {
+      expect(renderMarkdown("line one\nline two")).toBe(
+        "<p>line one<br>line two</p>\n",
+      );
+    });
   });
 
-  it("renders headings", () => {
-    const result = renderMarkdown("## Heading 2");
-    expect(result).toContain("<h2");
-    expect(result).toContain("Heading 2</h2>");
+  describe("security and sanitization", () => {
+    it("strips script tags (XSS)", () => {
+      expect(renderMarkdown('<script>alert("xss")</script>')).toBe(
+        "",
+      );
+    });
+
+    it("strips event handlers (XSS)", () => {
+      expect(
+        renderMarkdown('<img src=x onerror="alert(1)">'),
+      ).toBe('<img src="x">');
+    });
+
+    it("strips javascript: URLs (XSS)", () => {
+      expect(
+        renderMarkdown("[click](javascript:alert(1))"),
+      ).toBe("<p><a>click</a></p>\n");
+    });
   });
 
-  it("renders inline code", () => {
-    expect(renderMarkdown("`code`")).toContain(
-      "<code>code</code>",
-    );
-  });
+  describe("edge cases", () => {
+    it("returns empty string for empty input", () => {
+      expect(renderMarkdown("")).toBe("");
+    });
 
-  it("renders links", () => {
-    const result = renderMarkdown("[text](https://example.com)");
-    expect(result).toContain("<a ");
-    expect(result).toContain('href="https://example.com"');
-    expect(result).toContain("text</a>");
-  });
+    it("passes through plain text", () => {
+      expect(renderMarkdown("just plain text")).toBe(
+        "<p>just plain text</p>\n",
+      );
+    });
 
-  it("renders unordered lists", () => {
-    const result = renderMarkdown("- item one\n- item two");
-    expect(result).toContain("<ul>");
-    expect(result).toContain("<li>item one</li>");
-    expect(result).toContain("<li>item two</li>");
-  });
-
-  it("renders ordered lists", () => {
-    const result = renderMarkdown("1. first\n2. second");
-    expect(result).toContain("<ol>");
-    expect(result).toContain("<li>first</li>");
-    expect(result).toContain("<li>second</li>");
-  });
-
-  it("renders blockquotes", () => {
-    const result = renderMarkdown("> quoted text");
-    expect(result).toContain("<blockquote>");
-    expect(result).toContain("quoted text");
-  });
-
-  it("renders tables", () => {
-    const md = "| A | B |\n| --- | --- |\n| 1 | 2 |";
-    const result = renderMarkdown(md);
-    expect(result).toContain("<table>");
-    expect(result).toContain("<th>A</th>");
-    expect(result).toContain("<td>1</td>");
-  });
-
-  it("renders horizontal rules", () => {
-    expect(renderMarkdown("---")).toContain("<hr");
-  });
-
-  it("converts single newlines to <br>", () => {
-    const result = renderMarkdown("line one\nline two");
-    expect(result).toContain("<br>");
-  });
-
-  it("strips script tags (XSS)", () => {
-    const result = renderMarkdown(
-      '<script>alert("xss")</script>',
-    );
-    expect(result).not.toContain("<script");
-  });
-
-  it("strips event handlers (XSS)", () => {
-    const result = renderMarkdown(
-      '<img src=x onerror="alert(1)">',
-    );
-    expect(result).not.toContain("onerror");
-  });
-
-  it("strips javascript: URLs (XSS)", () => {
-    const result = renderMarkdown(
-      '[click](javascript:alert(1))',
-    );
-    expect(result).not.toContain("javascript:");
-  });
-
-  it("returns empty string for empty input", () => {
-    expect(renderMarkdown("")).toBe("");
-  });
-
-  it("passes through plain text", () => {
-    const result = renderMarkdown("just plain text");
-    expect(result).toContain("just plain text");
-  });
-
-  it("removes trailing newlines to prevent extra height", () => {
-    const result = renderMarkdown("text\n\n");
-    expect(result).not.toContain("<br>");
-    expect(result).toContain("text");
-    // Should be just <p>text</p> basically, no trailing <br>
-    expect(result.endsWith("<br>")).toBe(false);
+    it("removes trailing newlines to prevent extra height", () => {
+      expect(renderMarkdown("text\n\n")).toBe("<p>text</p>\n");
+    });
   });
 });
