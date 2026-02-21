@@ -77,23 +77,32 @@ jobs:
           CC: ${{ matrix.cc || '' }}
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
+          COMMIT=${GITHUB_SHA::8}
+          BUILD_DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           EXT=""
           if [ "$GOOS" = "windows" ]; then EXT=".exe"; fi
 
           mkdir -p dist
-          LDFLAGS="-s -w -X main.version=v${VERSION}"
+          LDFLAGS="-s -w -X main.version=v${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}"
           go build -tags fts5 -ldflags="$LDFLAGS" -trimpath \
             -o dist/agentsview${EXT} ./cmd/agentsview
 
           cd dist
-          ARCHIVE="agentsview_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
-          tar czf "$ARCHIVE" agentsview${EXT}
+          if [ "$GOOS" = "windows" ]; then
+            ARCHIVE="agentsview_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.zip"
+            7z a "$ARCHIVE" agentsview${EXT}
+          else
+            ARCHIVE="agentsview_${VERSION}_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz"
+            tar czf "$ARCHIVE" agentsview${EXT}
+          fi
           rm agentsview${EXT}
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
           name: agentsview-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
 
   release:
     needs: build
@@ -113,7 +122,7 @@ jobs:
       - name: Generate checksums
         run: |
           cd artifacts
-          sha256sum *.tar.gz > SHA256SUMS
+          sha256sum *.tar.gz *.zip > SHA256SUMS
           cat SHA256SUMS
 
       - name: Get tag message
@@ -145,6 +154,7 @@ jobs:
         with:
           files: |
             artifacts/*.tar.gz
+            artifacts/*.zip
             artifacts/SHA256SUMS
           body: ${{ steps.tag_message.outputs.has_body == 'true' && steps.tag_message.outputs.body || '' }}
           generate_release_notes: ${{ steps.tag_message.outputs.has_body != 'true' }}

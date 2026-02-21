@@ -37,6 +37,9 @@ func main() {
 		case "prune":
 			runPrune(os.Args[2:])
 			return
+		case "update":
+			runUpdate(os.Args[2:])
+			return
 		case "serve":
 			runServe(os.Args[2:])
 			return
@@ -63,6 +66,7 @@ Usage:
   agentsview [flags]          Start the server (default command)
   agentsview serve [flags]    Start the server (explicit)
   agentsview prune [flags]    Delete sessions matching filters
+  agentsview update [flags]   Check for and install updates
   agentsview version          Show version information
   agentsview help             Show this help
 
@@ -78,6 +82,11 @@ Prune flags:
   -first-message str  Sessions whose first message starts with this text
   -dry-run            Show what would be pruned without deleting
   -yes                Skip confirmation prompt
+
+Update flags:
+  -check              Check for updates without installing
+  -yes                Install without confirmation prompt
+  -force              Force check (ignore cache)
 
 Environment variables:
   CLAUDE_PROJECTS_DIR     Claude Code projects directory
