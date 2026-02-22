@@ -108,6 +108,24 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
+      - name: Embed frontend in Go source tree
+        run: |
+          rm -rf internal/web/dist
+          cp -r frontend/dist internal/web/dist
+
+      - name: Pre-build Go binaries
+        run: |
+          CGO_ENABLED=1 go build -tags fts5 \
+            -o /tmp/testfixture ./cmd/testfixture
+          CGO_ENABLED=1 go build -tags fts5 \
+            -o /tmp/agentsview ./cmd/agentsview
+        env:
+          CGO_ENABLED: "1"
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
         working-directory: frontend
@@ -115,3 +133,6 @@ jobs:
       - name: Run E2E tests
         run: npx playwright test
         working-directory: frontend
+        env:
+          E2E_PREBUILT_FIXTURE: /tmp/testfixture
+          E2E_PREBUILT_SERVER: /tmp/agentsview

@@ -9,19 +9,32 @@ DB_PATH="$TMPDIR/sessions.db"
 EMPTY_DIR="$TMPDIR/empty"
 mkdir -p "$EMPTY_DIR"
 
-# Build and run fixture generator
-echo "Building test fixture..."
-CGO_ENABLED=1 go build -tags fts5 \
-  -o "$TMPDIR/testfixture" "$ROOT/cmd/testfixture"
-"$TMPDIR/testfixture" -out "$DB_PATH"
+# Use pre-built binaries if available (CI sets these),
+# otherwise build from source (local dev).
+FIXTURE="${E2E_PREBUILT_FIXTURE:-}"
+SERVER="${E2E_PREBUILT_SERVER:-}"
 
-# Build the server with embedded frontend
-echo "Building server..."
-cd "$ROOT/frontend" && npm run build
-rm -rf "$ROOT/internal/web/dist"
-cp -r "$ROOT/frontend/dist" "$ROOT/internal/web/dist"
-CGO_ENABLED=1 go build -tags fts5 \
-  -o "$TMPDIR/agentsview" "$ROOT/cmd/agentsview"
+if [ -n "$FIXTURE" ] && [ -x "$FIXTURE" ]; then
+    echo "Using pre-built fixture: $FIXTURE"
+else
+    echo "Building test fixture..."
+    FIXTURE="$TMPDIR/testfixture"
+    CGO_ENABLED=1 go build -tags fts5 \
+      -o "$FIXTURE" "$ROOT/cmd/testfixture"
+fi
+"$FIXTURE" -out "$DB_PATH"
+
+if [ -n "$SERVER" ] && [ -x "$SERVER" ]; then
+    echo "Using pre-built server: $SERVER"
+else
+    echo "Building server..."
+    SERVER="$TMPDIR/agentsview"
+    cd "$ROOT/frontend" && npm run build
+    rm -rf "$ROOT/internal/web/dist"
+    cp -r "$ROOT/frontend/dist" "$ROOT/internal/web/dist"
+    CGO_ENABLED=1 go build -tags fts5 \
+      -o "$SERVER" "$ROOT/cmd/agentsview"
+fi
 
 # Run server with test DB, no sync dirs, fixed port
 echo "Starting e2e server on :8090..."
@@ -29,6 +42,6 @@ AGENT_VIEWER_DATA_DIR="$TMPDIR" \
 CLAUDE_PROJECTS_DIR="$EMPTY_DIR" \
 CODEX_SESSIONS_DIR="$EMPTY_DIR" \
 GEMINI_DIR="$EMPTY_DIR" \
-exec "$TMPDIR/agentsview" \
+exec "$SERVER" \
   -port 8090 \
   -no-browser
