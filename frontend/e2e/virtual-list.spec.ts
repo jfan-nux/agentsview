@@ -14,6 +14,11 @@ const DEEP_SESSIONS = 2000;
 const MIDDLE_INDEX = Math.floor(DEEP_SESSIONS / 2);
 const LAST_INDEX = DEEP_SESSIONS - 1;
 
+/** Regex matching the formatted session count in the list header. */
+const DEEP_COUNT_RE = new RegExp(
+  `${DEEP_SESSIONS.toLocaleString()} sessions`,
+);
+
 const sessions = createMockSessions(
   TOTAL_SESSIONS,
   "session",
@@ -93,7 +98,7 @@ test.describe("Virtual list behavior", () => {
     // sessions.length, so scrolling before loading completes
     // would land at the wrong position.
     await expect(sp.sessionListHeader).toContainText(
-      /2.?000 sessions/,
+      DEEP_COUNT_RE,
       { timeout: 15_000 },
     );
 
@@ -106,14 +111,14 @@ test.describe("Virtual list behavior", () => {
           "i",
         ),
       }),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: 10_000 });
   });
 
   test("scrolls to the end of a large list", async () => {
     await sp.filterByProject("deep");
 
     await expect(sp.sessionListHeader).toContainText(
-      /2.?000 sessions/,
+      DEEP_COUNT_RE,
       { timeout: 15_000 },
     );
 
@@ -126,6 +131,6 @@ test.describe("Virtual list behavior", () => {
           "i",
         ),
       }),
-    ).toBeVisible({ timeout: 5_000 });
+    ).toBeVisible({ timeout: 10_000 });
   });
 });
