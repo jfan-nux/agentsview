@@ -22,6 +22,9 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Stub frontend embed dir
+        run: mkdir -p internal/web/dist && echo ok > internal/web/dist/stub.html
+
       - uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20  # v9.2.0
         with:
           version: v2.10.1
@@ -51,6 +54,9 @@ jobs:
           install: mingw-w64-x86_64-gcc
           path-type: inherit
 
+      - name: Stub frontend embed dir
+        run: mkdir -p internal/web/dist && echo ok > internal/web/dist/stub.html
+
       - name: Run Go tests
         run: go test -tags fts5 ./... -v -count=1
         env:
@@ -72,6 +78,9 @@ jobs:
       - uses: actions/setup-go@7a3fe6cf4cb3a834922a1244abfce67bcef6a0c5  # v6.2.0
         with:
           go-version-file: go.mod
+
+      - name: Stub frontend embed dir
+        run: mkdir -p internal/web/dist && echo ok > internal/web/dist/stub.html
 
       - name: Test with coverage
         run: go test -tags fts5 -race -coverprofile=coverage.out ./...
