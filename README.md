@@ -1,18 +1,18 @@
 # agentsview
 
-Browse, search, and analyze your AI coding sessions. Never lose
-track of that clever solution your agent came up with three weeks
-ago.
+A local web application for browsing, searching, and analyzing
+AI agent coding sessions. Supports Claude Code, Codex, and
+Gemini CLI.
 
 ![Analytics dashboard](https://agentsview.io/screenshots/dashboard.png)
 
 ## Why?
 
-AI coding sessions pile up fast. Finding that one conversation where
-you solved a tricky bug means digging through session files by hand.
-agentsview gives you instant full-text search across every session,
-organized by project, with analytics to understand how you use your
-agents over time.
+AI coding agents generate large volumes of session data across
+projects. agentsview indexes these sessions into a local SQLite
+database with full-text search, providing a web interface to
+find past conversations, review agent behavior, and track usage
+patterns over time.
 
 ## Features
 
