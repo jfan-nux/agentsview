@@ -410,8 +410,12 @@ func DiscoverCursorSessions(
 			if !strings.HasSuffix(sf.Name(), ".txt") {
 				continue
 			}
+			fullPath := filepath.Join(transcriptsDir, sf.Name())
+			if !isRegularFile(fullPath) {
+				continue
+			}
 			files = append(files, DiscoveredFile{
-				Path:    filepath.Join(transcriptsDir, sf.Name()),
+				Path:    fullPath,
 				Project: project,
 				Agent:   parser.AgentCursor,
 			})
@@ -448,9 +452,21 @@ func FindCursorSourceFile(
 			projectsDir, entry.Name(),
 			"agent-transcripts", target,
 		)
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate
+		if !isRegularFile(candidate) {
+			continue
 		}
+		resolved, err := filepath.EvalSymlinks(candidate)
+		if err != nil {
+			continue
+		}
+		absProjects, err := filepath.Abs(projectsDir)
+		if err != nil {
+			continue
+		}
+		if !strings.HasPrefix(resolved, absProjects+string(os.PathSeparator)) {
+			continue
+		}
+		return candidate
 	}
 	return ""
 }
@@ -496,4 +512,15 @@ func buildGeminiProjectMap(
 func geminiPathHash(path string) string {
 	h := sha256.Sum256([]byte(path))
 	return fmt.Sprintf("%x", h)
+}
+
+// isRegularFile returns true if path exists and is a regular
+// file (not a symlink, directory, or other special file).
+// Uses os.Lstat to avoid following symlinks.
+func isRegularFile(path string) bool {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return false
+	}
+	return info.Mode().IsRegular()
 }

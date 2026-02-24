@@ -36,6 +36,7 @@
   const filterCount = $derived(
     (analytics.selectedDate !== null ? 1 : 0) +
     (analytics.project !== "" ? 1 : 0) +
+    (analytics.agent !== "" ? 1 : 0) +
     (hasTime ? 1 : 0)
   );
 </script>
@@ -82,6 +83,25 @@
           </svg>
         </span>
         {analytics.project}
+        <span class="chip-x">&times;</span>
+      </button>
+    {/if}
+
+    {#if analytics.agent}
+      <button
+        class="filter-chip"
+        onclick={() => analytics.clearAgent()}
+        title="Clear agent filter"
+      >
+        <span class="chip-icon">
+          <svg width="10" height="10" viewBox="0 0 16 16"
+            fill="currentColor">
+            <path d="M11 6a3 3 0 11-6 0 3 3 0 016
+              0zm-9 8c0-2.21 2.686-4 6-4s6 1.79 6
+              4v1H2v-1z"/>
+          </svg>
+        </span>
+        {analytics.agent}
         <span class="chip-x">&times;</span>
       </button>
     {/if}

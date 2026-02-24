@@ -14,9 +14,32 @@ import (
 func ParseCursorSession(
 	path, project, machine string,
 ) (*ParsedSession, []ParsedMessage, error) {
-	info, err := os.Stat(path)
+	// Use Lstat to detect symlinks before reading.
+	info, err := os.Lstat(path)
 	if err != nil {
 		return nil, nil, fmt.Errorf("stat %s: %w", path, err)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, nil, fmt.Errorf(
+			"skip %s: not a regular file", path,
+		)
+	}
+
+	// Verify the resolved path stays under the expected
+	// agent-transcripts directory to prevent escape via
+	// symlinked parent directories.
+	resolved, err := filepath.EvalSymlinks(
+		filepath.Dir(path),
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf(
+			"resolve %s: %w", path, err,
+		)
+	}
+	if filepath.Base(resolved) != "agent-transcripts" {
+		return nil, nil, fmt.Errorf(
+			"skip %s: not under agent-transcripts", path,
+		)
 	}
 
 	data, err := os.ReadFile(path)
@@ -212,9 +235,16 @@ func extractAssistantContent(
 			continue
 		}
 
-		// Tool result — skip
+		// Tool result — skip the header and body
 		if strings.HasPrefix(trimmed, "[Tool result]") {
 			i++
+			for i < len(lines) {
+				t := strings.TrimSpace(lines[i])
+				if isAssistantMarker(t) {
+					break
+				}
+				i++
+			}
 			continue
 		}
 

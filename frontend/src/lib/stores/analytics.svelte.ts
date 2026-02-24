@@ -151,6 +151,11 @@ class AnalyticsStore {
     this.fetchAll();
   }
 
+  clearAgent() {
+    this.agent = "";
+    this.fetchAll();
+  }
+
   clearTimeFilter() {
     this.selectedDow = null;
     this.selectedHour = null;
