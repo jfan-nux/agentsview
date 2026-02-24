@@ -313,6 +313,7 @@ export interface AnalyticsParams {
   timezone?: string;
   machine?: string;
   project?: string;
+  agent?: string;
   dow?: number;
   hour?: number;
 }
