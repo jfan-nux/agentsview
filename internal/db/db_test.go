@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -1889,6 +1890,175 @@ func TestResolveToolCallsPanicsOnLengthMismatch(t *testing.T) {
 	}
 	ids := []int64{1} // length mismatch
 	resolveToolCalls(msgs, ids)
+}
+
+func TestToolCallNewColumns(t *testing.T) {
+	d := testDB(t)
+	insertSession(t, d, "s1", "proj")
+	insertMessages(t, d, Message{
+		SessionID:     "s1",
+		Ordinal:       0,
+		Role:          "assistant",
+		Content:       "[Read: main.go]",
+		ContentLength: 15,
+		Timestamp:     tsZero,
+		ToolCalls: []ToolCall{{
+			SessionID:           "s1",
+			ToolName:            "Read",
+			Category:            "Read",
+			ToolUseID:           "toolu_abc",
+			InputJSON:           `{"file_path":"main.go"}`,
+			ResultContentLength: 500,
+		}},
+	})
+
+	var toolUseID, inputJSON sql.NullString
+	var resultLen sql.NullInt64
+	err := d.Reader().QueryRow(`
+        SELECT tool_use_id, input_json, result_content_length
+        FROM tool_calls WHERE session_id = 's1'
+    `).Scan(&toolUseID, &inputJSON, &resultLen)
+	if err != nil {
+		t.Fatalf("query tool_calls: %v", err)
+	}
+	if !toolUseID.Valid || toolUseID.String != "toolu_abc" {
+		t.Errorf("tool_use_id = %v, want toolu_abc", toolUseID)
+	}
+	if !inputJSON.Valid || inputJSON.String != `{"file_path":"main.go"}` {
+		t.Errorf("input_json = %v", inputJSON)
+	}
+	if !resultLen.Valid || resultLen.Int64 != 500 {
+		t.Errorf("result_content_length = %v, want 500", resultLen)
+	}
+}
+
+func TestToolCallSkillName(t *testing.T) {
+	d := testDB(t)
+	insertSession(t, d, "s1", "proj")
+	insertMessages(t, d, Message{
+		SessionID:     "s1",
+		Ordinal:       0,
+		Role:          "assistant",
+		Content:       "[Skill: superpowers:brainstorming]",
+		ContentLength: 34,
+		Timestamp:     tsZero,
+		ToolCalls: []ToolCall{{
+			SessionID: "s1",
+			ToolName:  "Skill",
+			Category:  "Tool",
+			ToolUseID: "toolu_skill1",
+			InputJSON: `{"skill":"superpowers:brainstorming"}`,
+			SkillName: "superpowers:brainstorming",
+		}},
+	})
+
+	var skillName sql.NullString
+	err := d.Reader().QueryRow(`
+        SELECT skill_name FROM tool_calls WHERE session_id = 's1'
+    `).Scan(&skillName)
+	if err != nil {
+		t.Fatalf("query: %v", err)
+	}
+	if !skillName.Valid || skillName.String != "superpowers:brainstorming" {
+		t.Errorf("skill_name = %v, want superpowers:brainstorming", skillName)
+	}
+}
+
+func TestGetMessagesReturnsToolCalls(t *testing.T) {
+	d := testDB(t)
+	insertSession(t, d, "s1", "proj")
+	insertMessages(t, d, Message{
+		SessionID:     "s1",
+		Ordinal:       0,
+		Role:          "assistant",
+		Content:       "[Skill: superpowers:brainstorming]",
+		ContentLength: 34,
+		Timestamp:     tsZero,
+		HasToolUse:    true,
+		ToolCalls: []ToolCall{{
+			SessionID:           "s1",
+			ToolName:            "Skill",
+			Category:            "Tool",
+			ToolUseID:           "toolu_s1",
+			InputJSON:           `{"skill":"superpowers:brainstorming"}`,
+			SkillName:           "superpowers:brainstorming",
+			ResultContentLength: 42,
+		}},
+	})
+
+	msgs, err := d.GetMessages(
+		context.Background(), "s1", 0, 100, true,
+	)
+	if err != nil {
+		t.Fatalf("GetMessages: %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("got %d messages, want 1", len(msgs))
+	}
+	if len(msgs[0].ToolCalls) != 1 {
+		t.Fatalf("got %d tool_calls, want 1",
+			len(msgs[0].ToolCalls))
+	}
+	tc := msgs[0].ToolCalls[0]
+	if tc.ToolName != "Skill" {
+		t.Errorf("ToolName = %q", tc.ToolName)
+	}
+	if tc.SkillName != "superpowers:brainstorming" {
+		t.Errorf("SkillName = %q", tc.SkillName)
+	}
+	if tc.InputJSON != `{"skill":"superpowers:brainstorming"}` {
+		t.Errorf("InputJSON = %q", tc.InputJSON)
+	}
+	if tc.ResultContentLength != 42 {
+		t.Errorf("ResultContentLength = %d", tc.ResultContentLength)
+	}
+}
+
+func TestGetAllMessagesReturnsToolCallsAcrossBatches(t *testing.T) {
+	d := testDB(t)
+	insertSession(t, d, "s1", "proj")
+
+	total := attachToolCallBatchSize + 25
+	msgs := make([]Message, 0, total)
+	for i := range total {
+		content := fmt.Sprintf("[Read: file-%d.txt]", i)
+		msgs = append(msgs, Message{
+			SessionID:     "s1",
+			Ordinal:       i,
+			Role:          "assistant",
+			Content:       content,
+			ContentLength: len(content),
+			Timestamp:     tsZero,
+			HasToolUse:    true,
+			ToolCalls: []ToolCall{{
+				SessionID: "s1",
+				ToolName:  "Read",
+				Category:  "Read",
+				ToolUseID: fmt.Sprintf("toolu_%d", i),
+			}},
+		})
+	}
+	insertMessages(t, d, msgs...)
+
+	got, err := d.GetAllMessages(context.Background(), "s1")
+	if err != nil {
+		t.Fatalf("GetAllMessages: %v", err)
+	}
+	if len(got) != total {
+		t.Fatalf("got %d messages, want %d", len(got), total)
+	}
+
+	for i := range total {
+		if len(got[i].ToolCalls) != 1 {
+			t.Fatalf("msg %d: got %d tool_calls, want 1",
+				i, len(got[i].ToolCalls))
+		}
+		if got[i].ToolCalls[0].ToolUseID != fmt.Sprintf("toolu_%d", i) {
+			t.Fatalf("msg %d: tool_use_id = %q, want %q",
+				i, got[i].ToolCalls[0].ToolUseID,
+				fmt.Sprintf("toolu_%d", i))
+		}
+	}
 }
 
 func TestFTSBackfill(t *testing.T) {

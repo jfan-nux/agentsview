@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strings"
 )
 
 const (
@@ -17,29 +18,44 @@ const (
 	DefaultMessageLimit = 100
 	// MaxMessageLimit is the maximum number of messages returned.
 	MaxMessageLimit = 1000
+
+	// Keep query parameter counts conservative so large sessions
+	// do not exceed SQLite variable limits when hydrating tool calls.
+	attachToolCallBatchSize = 500
 )
 
 // ToolCall represents a single tool invocation stored in
 // the tool_calls table.
 type ToolCall struct {
-	MessageID int64
-	SessionID string
-	ToolName  string
-	Category  string
+	MessageID           int64  `json:"-"`
+	SessionID           string `json:"-"`
+	ToolName            string `json:"tool_name"`
+	Category            string `json:"category"`
+	ToolUseID           string `json:"tool_use_id,omitempty"`
+	InputJSON           string `json:"input_json,omitempty"`
+	SkillName           string `json:"skill_name,omitempty"`
+	ResultContentLength int    `json:"result_content_length,omitempty"`
+}
+
+// ToolResult holds a tool_result content length for pairing.
+type ToolResult struct {
+	ToolUseID     string
+	ContentLength int
 }
 
 // Message represents a row in the messages table.
 type Message struct {
-	ID            int64      `json:"id"`
-	SessionID     string     `json:"session_id"`
-	Ordinal       int        `json:"ordinal"`
-	Role          string     `json:"role"`
-	Content       string     `json:"content"`
-	Timestamp     string     `json:"timestamp"`
-	HasThinking   bool       `json:"has_thinking"`
-	HasToolUse    bool       `json:"has_tool_use"`
-	ContentLength int        `json:"content_length"`
-	ToolCalls     []ToolCall `json:"-"` // transient, not a DB column
+	ID            int64        `json:"id"`
+	SessionID     string       `json:"session_id"`
+	Ordinal       int          `json:"ordinal"`
+	Role          string       `json:"role"`
+	Content       string       `json:"content"`
+	Timestamp     string       `json:"timestamp"`
+	HasThinking   bool         `json:"has_thinking"`
+	HasToolUse    bool         `json:"has_tool_use"`
+	ContentLength int          `json:"content_length"`
+	ToolCalls     []ToolCall   `json:"tool_calls,omitempty"`
+	ToolResults   []ToolResult `json:"-"` // transient, for pairing
 }
 
 // MinimapEntry is a lightweight message summary for minimap rendering.
@@ -84,7 +100,14 @@ func (db *DB) GetMessages(
 		return nil, fmt.Errorf("querying messages: %w", err)
 	}
 	defer rows.Close()
-	return scanMessages(rows)
+	msgs, err := scanMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.attachToolCalls(ctx, msgs); err != nil {
+		return nil, err
+	}
+	return msgs, nil
 }
 
 // GetAllMessages returns all messages for a session ordered by ordinal.
@@ -100,7 +123,14 @@ func (db *DB) GetAllMessages(
 		return nil, fmt.Errorf("querying all messages: %w", err)
 	}
 	defer rows.Close()
-	return scanMessages(rows)
+	msgs, err := scanMessages(rows)
+	if err != nil {
+		return nil, err
+	}
+	if err := db.attachToolCalls(ctx, msgs); err != nil {
+		return nil, err
+	}
+	return msgs, nil
 }
 
 // GetMinimap returns lightweight metadata for all messages in a session.
@@ -198,6 +228,20 @@ func (db *DB) insertMessagesTx(
 	return ids, nil
 }
 
+func nilIfEmpty(s string) any {
+	if s == "" {
+		return nil
+	}
+	return s
+}
+
+func nilIfZero(n int) any {
+	if n == 0 {
+		return nil
+	}
+	return n
+}
+
 // insertToolCallsTx batch-inserts tool calls within an
 // existing transaction.
 func insertToolCallsTx(
@@ -208,8 +252,10 @@ func insertToolCallsTx(
 	}
 	stmt, err := tx.Prepare(`
 		INSERT INTO tool_calls
-			(message_id, session_id, tool_name, category)
-		VALUES (?, ?, ?, ?)`)
+			(message_id, session_id, tool_name, category,
+			 tool_use_id, input_json, skill_name,
+			 result_content_length)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
 		return fmt.Errorf("preparing tool_calls insert: %w", err)
 	}
@@ -219,6 +265,10 @@ func insertToolCallsTx(
 		if _, err := stmt.Exec(
 			tc.MessageID, tc.SessionID,
 			tc.ToolName, tc.Category,
+			nilIfEmpty(tc.ToolUseID),
+			nilIfEmpty(tc.InputJSON),
+			nilIfEmpty(tc.SkillName),
+			nilIfZero(tc.ResultContentLength),
 		); err != nil {
 			return fmt.Errorf(
 				"inserting tool_call %q: %w", tc.ToolName, err,
@@ -306,6 +356,99 @@ func (db *DB) ReplaceSessionMessages(
 	return tx.Commit()
 }
 
+// attachToolCalls loads tool_calls for the given messages
+// and attaches them to each message's ToolCalls field.
+func (db *DB) attachToolCalls(
+	ctx context.Context, msgs []Message,
+) error {
+	if len(msgs) == 0 {
+		return nil
+	}
+
+	idToIdx := make(map[int64]int, len(msgs))
+	ids := make([]int64, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+		idToIdx[m.ID] = i
+	}
+
+	for i := 0; i < len(ids); i += attachToolCallBatchSize {
+		end := min(i+attachToolCallBatchSize, len(ids))
+		if err := db.attachToolCallsBatch(
+			ctx, msgs, idToIdx, ids[i:end],
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (db *DB) attachToolCallsBatch(
+	ctx context.Context,
+	msgs []Message,
+	idToIdx map[int64]int,
+	batch []int64,
+) error {
+	if len(batch) == 0 {
+		return nil
+	}
+
+	args := make([]any, len(batch))
+	placeholders := make([]string, len(batch))
+	for i, id := range batch {
+		args[i] = id
+		placeholders[i] = "?"
+	}
+
+	query := fmt.Sprintf(`
+		SELECT message_id, session_id, tool_name, category,
+			tool_use_id, input_json, skill_name,
+			result_content_length
+		FROM tool_calls
+		WHERE message_id IN (%s)
+		ORDER BY id`,
+		strings.Join(placeholders, ","))
+
+	rows, err := db.reader.QueryContext(ctx, query, args...)
+	if err != nil {
+		return fmt.Errorf("querying tool_calls: %w", err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var tc ToolCall
+		var toolUseID, inputJSON, skillName sql.NullString
+		var resultLen sql.NullInt64
+		if err := rows.Scan(
+			&tc.MessageID, &tc.SessionID,
+			&tc.ToolName, &tc.Category,
+			&toolUseID, &inputJSON, &skillName,
+			&resultLen,
+		); err != nil {
+			return fmt.Errorf("scanning tool_call: %w", err)
+		}
+		if toolUseID.Valid {
+			tc.ToolUseID = toolUseID.String
+		}
+		if inputJSON.Valid {
+			tc.InputJSON = inputJSON.String
+		}
+		if skillName.Valid {
+			tc.SkillName = skillName.String
+		}
+		if resultLen.Valid {
+			tc.ResultContentLength = int(resultLen.Int64)
+		}
+
+		if idx, ok := idToIdx[tc.MessageID]; ok {
+			msgs[idx].ToolCalls = append(
+				msgs[idx].ToolCalls, tc,
+			)
+		}
+	}
+	return rows.Err()
+}
+
 func scanMessages(rows *sql.Rows) ([]Message, error) {
 	var msgs []Message
 	for rows.Next() {
@@ -374,10 +517,14 @@ func resolveToolCalls(
 	for i, m := range msgs {
 		for _, tc := range m.ToolCalls {
 			calls = append(calls, ToolCall{
-				MessageID: ids[i],
-				SessionID: m.SessionID,
-				ToolName:  tc.ToolName,
-				Category:  tc.Category,
+				MessageID:           ids[i],
+				SessionID:           m.SessionID,
+				ToolName:            tc.ToolName,
+				Category:            tc.Category,
+				ToolUseID:           tc.ToolUseID,
+				InputJSON:           tc.InputJSON,
+				SkillName:           tc.SkillName,
+				ResultContentLength: tc.ResultContentLength,
 			})
 		}
 	}

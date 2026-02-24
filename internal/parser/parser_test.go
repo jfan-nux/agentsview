@@ -167,6 +167,18 @@ func TestExtractTextContent(t *testing.T) {
 			},
 		},
 		{
+			"tool_use with id and input",
+			`[{"type":"tool_use","id":"toolu_123","name":"Read","input":{"file_path":"main.go"}}]`,
+			"[Read: main.go]", false, true,
+			[]ParsedToolCall{{ToolUseID: "toolu_123", ToolName: "Read", Category: "Read", InputJSON: `{"file_path":"main.go"}`}},
+		},
+		{
+			"Skill tool extracts skill_name",
+			`[{"type":"tool_use","id":"toolu_456","name":"Skill","input":{"skill":"superpowers:brainstorming"}}]`,
+			"[Skill: superpowers:brainstorming]", false, true,
+			[]ParsedToolCall{{ToolUseID: "toolu_456", ToolName: "Skill", Category: "Tool", InputJSON: `{"skill":"superpowers:brainstorming"}`, SkillName: "superpowers:brainstorming"}},
+		},
+		{
 			"tool_use with empty name",
 			`[{"type":"tool_use","name":"","input":{}}]`,
 			"[Tool: ]", false, true, nil,
@@ -181,7 +193,7 @@ func TestExtractTextContent(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			result := gjson.Parse(tt.json)
-			text, hasThinking, hasToolUse, tcs :=
+			text, hasThinking, hasToolUse, tcs, _ :=
 				ExtractTextContent(result)
 			if text != tt.wantText {
 				t.Errorf("text = %q, want %q", text, tt.wantText)
@@ -195,6 +207,58 @@ func TestExtractTextContent(t *testing.T) {
 					hasToolUse, tt.wantToolUse)
 			}
 			assertToolCalls(t, tcs, tt.wantToolCalls)
+		})
+	}
+}
+
+func TestExtractToolResults(t *testing.T) {
+	tests := []struct {
+		name        string
+		json        string
+		wantResults []ParsedToolResult
+	}{
+		{
+			"no tool_result blocks",
+			`[{"type":"text","text":"hello"}]`,
+			nil,
+		},
+		{
+			"single tool_result",
+			`[{"type":"tool_result","tool_use_id":"toolu_123","content":"file contents here"}]`,
+			[]ParsedToolResult{{ToolUseID: "toolu_123", ContentLength: 18}},
+		},
+		{
+			"tool_result with array content",
+			`[{"type":"tool_result","tool_use_id":"toolu_456","content":[{"type":"text","text":"output data"}]}]`,
+			[]ParsedToolResult{{ToolUseID: "toolu_456", ContentLength: 11}},
+		},
+		{
+			"multiple tool_results",
+			`[{"type":"tool_result","tool_use_id":"toolu_1","content":"abc"},{"type":"tool_result","tool_use_id":"toolu_2","content":"defgh"}]`,
+			[]ParsedToolResult{
+				{ToolUseID: "toolu_1", ContentLength: 3},
+				{ToolUseID: "toolu_2", ContentLength: 5},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := gjson.Parse(tt.json)
+			_, _, _, _, trs := ExtractTextContent(result)
+			if len(trs) != len(tt.wantResults) {
+				t.Fatalf("tool_results count = %d, want %d",
+					len(trs), len(tt.wantResults))
+			}
+			for i := range tt.wantResults {
+				if trs[i].ToolUseID != tt.wantResults[i].ToolUseID {
+					t.Errorf("[%d].ToolUseID = %q, want %q",
+						i, trs[i].ToolUseID, tt.wantResults[i].ToolUseID)
+				}
+				if trs[i].ContentLength != tt.wantResults[i].ContentLength {
+					t.Errorf("[%d].ContentLength = %d, want %d",
+						i, trs[i].ContentLength, tt.wantResults[i].ContentLength)
+				}
+			}
 		})
 	}
 }
@@ -279,6 +343,41 @@ func TestFormatToolUseVariants(t *testing.T) {
 			"TodoWrite unknown status",
 			`{"type":"tool_use","name":"TodoWrite","input":{"todos":[{"content":"Something","status":"unknown"}]}}`,
 			"[Todo List]\n  ○ Something",
+		},
+		{
+			"Skill",
+			`{"type":"tool_use","name":"Skill","input":{"skill":"superpowers:brainstorming"}}`,
+			"[Skill: superpowers:brainstorming]",
+		},
+		{
+			"Skill with args",
+			`{"type":"tool_use","name":"Skill","input":{"skill":"commit","args":"-m 'Fix bug'"}}`,
+			"[Skill: commit]",
+		},
+		{
+			"TaskCreate with subject",
+			`{"type":"tool_use","name":"TaskCreate","input":{"subject":"Fix authentication bug","description":"Debug the login flow"}}`,
+			"[TaskCreate: Fix authentication bug]",
+		},
+		{
+			"TaskUpdate with status",
+			`{"type":"tool_use","name":"TaskUpdate","input":{"taskId":"5","status":"completed"}}`,
+			"[TaskUpdate: #5 completed]",
+		},
+		{
+			"TaskGet",
+			`{"type":"tool_use","name":"TaskGet","input":{"taskId":"3"}}`,
+			"[TaskGet: #3]",
+		},
+		{
+			"TaskList",
+			`{"type":"tool_use","name":"TaskList","input":{}}`,
+			"[TaskList]",
+		},
+		{
+			"SendMessage",
+			`{"type":"tool_use","name":"SendMessage","input":{"type":"message","recipient":"researcher","content":"hello"}}`,
+			"[SendMessage: message to researcher]",
 		},
 	}
 
@@ -1422,6 +1521,63 @@ func TestExtractCwdFromSession(t *testing.T) {
 	})
 }
 
+func TestParseCodexSession_WorktreeBranchFallback(t *testing.T) {
+	content := `{"type":"session_meta","timestamp":"2024-01-01T00:00:00Z","payload":{"id":"test-uuid","cwd":"/Users/wesm/code/agentsview-worktree-tool-call-arguments","originator":"user","git":{"branch":"worktree-tool-call-arguments"}}}` + "\n" +
+		`{"type":"response_item","timestamp":"2024-01-01T00:00:01Z","payload":{"role":"user","content":[{"type":"input_text","text":"hello"}]}}` + "\n"
+	path := createTestFile(t, "codex-worktree.jsonl", content)
+
+	sess, _, err := ParseCodexSession(path, "local", false)
+	if err != nil {
+		t.Fatalf("ParseCodexSession: %v", err)
+	}
+	if sess == nil {
+		t.Fatal("session is nil")
+	}
+	if sess.Project != "agentsview" {
+		t.Fatalf("project = %q, want %q", sess.Project, "agentsview")
+	}
+}
+
+func TestExtractClaudeProjectHints(t *testing.T) {
+	t.Run("extracts cwd and gitBranch", func(t *testing.T) {
+		content := `{"type":"user","timestamp":"2024-01-01T00:00:00Z","cwd":"/Users/alice/code/my-app-worktree-fix","gitBranch":"worktree-fix","message":{"content":"hi"}}` + "\n"
+		path := createTestFile(t, "hints.jsonl", content)
+
+		cwd, branch := ExtractClaudeProjectHints(path)
+		if cwd != "/Users/alice/code/my-app-worktree-fix" {
+			t.Fatalf("cwd = %q, want %q",
+				cwd, "/Users/alice/code/my-app-worktree-fix")
+		}
+		if branch != "worktree-fix" {
+			t.Fatalf("branch = %q, want %q", branch, "worktree-fix")
+		}
+	})
+
+	t.Run("missing branch still returns cwd", func(t *testing.T) {
+		content := `{"type":"user","timestamp":"2024-01-01T00:00:00Z","cwd":"/Users/alice/code/my-app","message":{"content":"hi"}}` + "\n"
+		path := createTestFile(t, "hints-nobranch.jsonl", content)
+
+		cwd, branch := ExtractClaudeProjectHints(path)
+		if cwd != "/Users/alice/code/my-app" {
+			t.Fatalf("cwd = %q, want %q",
+				cwd, "/Users/alice/code/my-app")
+		}
+		if branch != "" {
+			t.Fatalf("branch = %q, want empty", branch)
+		}
+	})
+
+	t.Run("missing file", func(t *testing.T) {
+		cwd, branch := ExtractClaudeProjectHints(
+			"/nonexistent/path.jsonl",
+		)
+		if cwd != "" || branch != "" {
+			t.Fatalf("got cwd=%q branch=%q, want both empty",
+				cwd, branch)
+		}
+	})
+}
+
 func TestParseGeminiSession(t *testing.T) {
 	hash := "abc123def456"
 
@@ -1749,5 +1905,38 @@ func TestGeminiSessionID(t *testing.T) {
 	got = GeminiSessionID([]byte(`{}`))
 	if got != "" {
 		t.Errorf("GeminiSessionID empty = %q, want empty", got)
+	}
+}
+
+func TestParseClaudeToolResults(t *testing.T) {
+	lines := []string{
+		`{"type":"assistant","timestamp":"2024-01-01T00:00:00Z","message":{"content":[{"type":"tool_use","id":"toolu_abc","name":"Read","input":{"file_path":"main.go"}}]}}`,
+		`{"type":"user","timestamp":"2024-01-01T00:00:01Z","message":{"content":[{"type":"tool_result","tool_use_id":"toolu_abc","content":"package main\nfunc main() {}"}]}}`,
+	}
+	content := strings.Join(lines, "\n") + "\n"
+	path := createTestFile(t, "tool-results.jsonl", content)
+
+	_, msgs, err := ParseClaudeSession(path, "test-project", "local")
+	if err != nil {
+		t.Fatalf("ParseClaudeSession: %v", err)
+	}
+
+	// Should have 2 messages: assistant tool_use + user tool_result
+	if len(msgs) != 2 {
+		t.Fatalf("got %d messages, want 2", len(msgs))
+	}
+
+	// User message should have ToolResults populated
+	userMsg := msgs[1]
+	if len(userMsg.ToolResults) != 1 {
+		t.Fatalf("ToolResults count = %d, want 1", len(userMsg.ToolResults))
+	}
+	if userMsg.ToolResults[0].ToolUseID != "toolu_abc" {
+		t.Errorf("ToolUseID = %q, want toolu_abc",
+			userMsg.ToolResults[0].ToolUseID)
+	}
+	if userMsg.ToolResults[0].ContentLength != 27 {
+		t.Errorf("ContentLength = %d, want 27",
+			userMsg.ToolResults[0].ContentLength)
 	}
 }

@@ -103,9 +103,9 @@ func ParseClaudeSession(
 			}
 
 			content := gjson.Get(line, "message.content")
-			text, hasThinking, hasToolUse, tcs :=
+			text, hasThinking, hasToolUse, tcs, trs :=
 				ExtractTextContent(content)
-			if strings.TrimSpace(text) == "" {
+			if strings.TrimSpace(text) == "" && len(trs) == 0 {
 				continue
 			}
 
@@ -131,6 +131,7 @@ func ParseClaudeSession(
 				HasToolUse:    hasToolUse,
 				ContentLength: len(text),
 				ToolCalls:     tcs,
+				ToolResults:   trs,
 			})
 			ordinal++
 		}
@@ -161,12 +162,14 @@ func ParseClaudeSession(
 	return sess, messages, nil
 }
 
-// ExtractCwdFromSession reads the first cwd field from a Claude
-// Code JSONL session file.
-func ExtractCwdFromSession(path string) string {
+// ExtractClaudeProjectHints reads project-identifying metadata
+// from a Claude Code JSONL session file.
+func ExtractClaudeProjectHints(
+	path string,
+) (cwd, gitBranch string) {
 	f, err := os.Open(path)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 	defer f.Close()
 
@@ -184,13 +187,25 @@ func ExtractCwdFromSession(path string) string {
 			continue
 		}
 		if gjson.Get(line, "type").Str == "user" {
-			cwd := gjson.Get(line, "cwd").Str
-			if cwd != "" {
-				return cwd
+			if cwd == "" {
+				cwd = gjson.Get(line, "cwd").Str
+			}
+			if gitBranch == "" {
+				gitBranch = gjson.Get(line, "gitBranch").Str
+			}
+			if cwd != "" && gitBranch != "" {
+				return cwd, gitBranch
 			}
 		}
 	}
-	return ""
+	return cwd, gitBranch
+}
+
+// ExtractCwdFromSession reads the first cwd field from a Claude
+// Code JSONL session file.
+func ExtractCwdFromSession(path string) string {
+	cwd, _ := ExtractClaudeProjectHints(path)
+	return cwd
 }
 
 func truncate(s string, maxLen int) string {

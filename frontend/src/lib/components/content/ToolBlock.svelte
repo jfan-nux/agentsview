@@ -1,14 +1,89 @@
 <script lang="ts">
+  import type { ToolCall } from "../../api/types.js";
+
   interface Props {
     content: string;
     label?: string;
+    toolCall?: ToolCall;
   }
 
-  let { content, label }: Props = $props();
+  let { content, label, toolCall }: Props = $props();
   let collapsed: boolean = $state(true);
 
   let previewLine = $derived(
     content.split("\n")[0]?.slice(0, 100) ?? "",
+  );
+
+  /** Parsed input parameters from structured tool call data */
+  let inputParams = $derived.by(() => {
+    if (!toolCall?.input_json) return null;
+    try {
+      return JSON.parse(toolCall.input_json);
+    } catch {
+      return null;
+    }
+  });
+
+  /** For Task tool calls, extract key metadata fields */
+  let taskMeta = $derived.by(() => {
+    if (toolCall?.tool_name !== "Task" || !inputParams)
+      return null;
+    const meta: { label: string; value: string }[] = [];
+    if (inputParams.subagent_type) {
+      meta.push({
+        label: "type",
+        value: inputParams.subagent_type,
+      });
+    }
+    if (inputParams.description) {
+      meta.push({
+        label: "description",
+        value: inputParams.description,
+      });
+    }
+    return meta.length ? meta : null;
+  });
+
+  /** For TaskCreate, show subject and description */
+  let taskCreateMeta = $derived.by(() => {
+    if (toolCall?.tool_name !== "TaskCreate" || !inputParams)
+      return null;
+    const meta: { label: string; value: string }[] = [];
+    if (inputParams.subject) {
+      meta.push({ label: "subject", value: inputParams.subject });
+    }
+    if (inputParams.description) {
+      meta.push({ label: "description", value: inputParams.description });
+    }
+    return meta.length ? meta : null;
+  });
+
+  /** For TaskUpdate, show taskId and status */
+  let taskUpdateMeta = $derived.by(() => {
+    if (toolCall?.tool_name !== "TaskUpdate" || !inputParams)
+      return null;
+    const meta: { label: string; value: string }[] = [];
+    if (inputParams.taskId) {
+      meta.push({ label: "task", value: `#${inputParams.taskId}` });
+    }
+    if (inputParams.status) {
+      meta.push({ label: "status", value: inputParams.status });
+    }
+    if (inputParams.subject) {
+      meta.push({ label: "subject", value: inputParams.subject });
+    }
+    return meta.length ? meta : null;
+  });
+
+  /** Combined metadata for any tool type */
+  let metaTags = $derived(
+    taskMeta ?? taskCreateMeta ?? taskUpdateMeta ?? null,
+  );
+
+  let taskPrompt = $derived(
+    toolCall?.tool_name === "Task"
+      ? inputParams?.prompt ?? null
+      : null,
   );
 </script>
 
@@ -28,7 +103,21 @@
     {/if}
   </button>
   {#if !collapsed}
-    <pre class="tool-content">{content}</pre>
+    {#if metaTags}
+      <div class="tool-meta">
+        {#each metaTags as { label: metaLabel, value }}
+          <span class="meta-tag">
+            <span class="meta-label">{metaLabel}:</span>
+            {value}
+          </span>
+        {/each}
+      </div>
+    {/if}
+    {#if taskPrompt}
+      <pre class="tool-content">{taskPrompt}</pre>
+    {:else if content}
+      <pre class="tool-content">{content}</pre>
+    {/if}
   {/if}
 </div>
 
@@ -88,6 +177,28 @@
     overflow: hidden;
     text-overflow: ellipsis;
     min-width: 0;
+  }
+
+  .tool-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 6px 14px;
+    border-top: 1px solid var(--border-muted);
+  }
+
+  .meta-tag {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-inset);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+  }
+
+  .meta-label {
+    color: var(--text-secondary);
+    font-weight: 500;
   }
 
   .tool-content {
